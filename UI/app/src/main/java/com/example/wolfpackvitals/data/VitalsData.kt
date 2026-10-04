@@ -46,13 +46,12 @@ data class DatabricksPipelineStatus(
     val riskLabel: String = "Pre-Diabetes Risk:",
     val riskLevelText: String = "Low (X-FuzzEn < 0.1)",
     val isSyncing: Boolean = false,
-    val lastSyncedText: String = "Active",
+    val lastSyncedText: String = "Standby",
     val modelAccuracy: String = "91.2%",
     val treeDepth: Int = 8,
     val inferenceLatencyMs: Int = 14,
-    val sampleRateHz: Int = 64,
     val activeWorkers: Int = 8,
-    val clusterStatus: String = "Running (Online)",
+    val clusterStatus: String = "Paused (Standby)",
     val workspaceUrl: String = "dbc-wolfpack-vitals.cloud.databricks.com"
 )
 
@@ -87,8 +86,7 @@ data class ConnectedDevice(
 )
 
 data class AppSettings(
-    val streamingFrequencyHz: Int = 64,
-    val isLiveStreamingEnabled: Boolean = true,
+    val isLiveStreamingEnabled: Boolean = false,
     val isOfflineCachingEnabled: Boolean = true,
     val isTelemetryDeidentified: Boolean = true,
     val notificationsEnabled: Boolean = true,
@@ -153,7 +151,7 @@ data class DashboardUiState(
             badgeBg = StableGreenBg,
             badgeColor = StableGreen,
             description = "Frequency-domain heart rate variability index quantifying sympathetic versus parasympathetic autonomic balance.",
-            clinicalInsight = "Low-frequency to high-frequency ratio (LF/HF) derived from 64Hz photoplethysmography intervals. An optimal ratio (1.0 - 2.0) reflects restorative parasympathetic tone.",
+            clinicalInsight = "Low-frequency to high-frequency ratio (LF/HF) derived from continuous photoplethysmography intervals. An optimal ratio (1.0 - 2.0) reflects restorative parasympathetic tone.",
             referenceRange = "1.0 - 2.0 (Resting)",
             confidenceScore = "96.2%",
             recommendations = listOf(
@@ -178,7 +176,7 @@ data class DashboardUiState(
             type = "Clinical Continuous Wearable",
             isConnected = true,
             batteryPercent = 88,
-            lastSyncTime = "Active (Live 64Hz)",
+            lastSyncTime = "Active (Connected)",
             modalities = "PPG, EDA, Temp, 3-Axis ACC"
         ),
         ConnectedDevice(
@@ -202,5 +200,5 @@ data class DashboardUiState(
     ),
     val settings: AppSettings = AppSettings(),
     val selectedBiomarkerFilter: String = "All",
-    val isStreamingActive: Boolean = true,
+    val isStreamingActive: Boolean = false,
 )

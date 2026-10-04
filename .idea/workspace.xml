@@ -16,16 +16,14 @@
       <change beforePath="$PROJECT_DIR$/.gradle/9.6.0/fileHashes/fileHashes.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/9.6.0/fileHashes/fileHashes.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/9.6.0/fileHashes/resourceHashesCache.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/9.6.0/fileHashes/resourceHashesCache.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gradle/file-system.probe" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/file-system.probe" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/MainActivity.kt" beforeDir="false" afterPath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/MainActivity.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/data/VitalsData.kt" beforeDir="false" afterPath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/data/VitalsData.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/ui/VitalsViewModel.kt" beforeDir="false" afterPath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/ui/VitalsViewModel.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/ui/components/DatabricksMLCard.kt" beforeDir="false" afterPath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/ui/components/DatabricksMLCard.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/ui/components/Dialogs.kt" beforeDir="false" afterPath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/ui/components/Dialogs.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/ui/components/HeartRateChartCard.kt" beforeDir="false" afterPath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/ui/components/HeartRateChartCard.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/ui/components/PulsatingStreamingBadge.kt" beforeDir="false" afterPath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/ui/components/PulsatingStreamingBadge.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/ui/screens/DashboardScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/ui/screens/DashboardScreen.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/ui/screens/ProfileScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/ui/screens/ProfileScreen.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/ui/screens/ResearchScreen.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/ui/screens/LandingScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/ui/screens/LandingScreen.kt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

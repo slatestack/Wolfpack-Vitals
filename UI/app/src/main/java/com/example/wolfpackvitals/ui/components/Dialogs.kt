@@ -41,11 +41,10 @@ import kotlinx.coroutines.launch
 fun SettingsDialog(
     settings: AppSettings,
     onDismiss: () -> Unit,
-    onSaveSettings: (Int, Boolean, Boolean, Boolean) -> Unit,
+    onSaveSettings: (Boolean, Boolean, Boolean) -> Unit,
     onClearCache: () -> Unit
 ) {
     val context = LocalContext.current
-    var selectedFreq by remember { mutableIntStateOf(settings.streamingFrequencyHz) }
     var offlineCaching by remember { mutableStateOf(settings.isOfflineCachingEnabled) }
     var deidentified by remember { mutableStateOf(settings.isTelemetryDeidentified) }
     var liveStream by remember { mutableStateOf(settings.isLiveStreamingEnabled) }
@@ -88,24 +87,6 @@ fun SettingsDialog(
 
                 HorizontalDivider(color = Color(0xFFE5E7EB))
 
-                // Streaming Frequency
-                Text("Sensor Sampling Frequency", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = NCStateDarkGray)
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(1 to "1 Hz (Battery Saver)", 4 to "4 Hz (Standard)", 64 to "64 Hz (Clinical Raw)").forEach { (freq, label) ->
-                        FilterChip(
-                            selected = selectedFreq == freq,
-                            onClick = { selectedFreq = freq },
-                            label = { Text(label, fontSize = 11.sp, fontWeight = if (selectedFreq == freq) FontWeight.Bold else FontWeight.Normal) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = NCStateRed,
-                                selectedLabelColor = Color.White
-                            )
-                        )
-                    }
-                }
-
-                HorizontalDivider(color = Color(0xFFE5E7EB))
-
                 // Toggles
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -114,7 +95,7 @@ fun SettingsDialog(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Live Databricks Stream", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                        Text("Simulate continuous 64Hz socket ingestion", fontSize = 12.sp, color = Color.Gray)
+                        Text("Simulate live Databricks cloud synchronization", fontSize = 12.sp, color = Color.Gray)
                     }
                     Switch(checked = liveStream, onCheckedChange = { liveStream = it })
                 }
@@ -183,7 +164,7 @@ fun SettingsDialog(
                     }
                     Button(
                         onClick = {
-                            onSaveSettings(selectedFreq, liveStream, offlineCaching, deidentified)
+                            onSaveSettings(liveStream, offlineCaching, deidentified)
                             Toast.makeText(context, "Settings saved", Toast.LENGTH_SHORT).show()
                             onDismiss()
                         },
@@ -779,7 +760,7 @@ fun DatabricksModelInsightsDialog(
                         MetricRow("ROC-AUC Score", pipelineStatus.modelAccuracy)
                         MetricRow("Max Tree Depth", "${pipelineStatus.treeDepth} levels")
                         MetricRow("Inference Latency", "${pipelineStatus.inferenceLatencyMs} ms")
-                        MetricRow("Sampling Frequency", "${pipelineStatus.sampleRateHz} Hz (ECG/EDA)")
+                        MetricRow("Sensor Ingestion", "Multi-Modal PPG/EDA/ACC")
                         MetricRow("Active Spark Workers", "${pipelineStatus.activeWorkers} Nodes")
                         MetricRow("Cluster State", pipelineStatus.clusterStatus)
                         MetricRow("Databricks Workspace", pipelineStatus.workspaceUrl)
@@ -1244,7 +1225,7 @@ fun DatabricksConnectionDialog(
                     Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         MetricRow("Workspace URL", pipelineStatus.workspaceUrl)
                         MetricRow("Cluster Runtime", "Apache Spark 3.5 ML GPU")
-                        MetricRow("Inference Protocol", "gRPC 64Hz Stream Ingestion")
+                        MetricRow("Inference Protocol", "Databricks REST / LLM Protocol")
                         MetricRow("Cluster Status", pipelineStatus.clusterStatus)
                         MetricRow("Token Health", "Valid (Active Session)")
                     }

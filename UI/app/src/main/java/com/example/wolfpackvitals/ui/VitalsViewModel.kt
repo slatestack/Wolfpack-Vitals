@@ -222,7 +222,7 @@ class VitalsViewModel : ViewModel() {
 
     // 10. Update App Preferences & Settings
     fun updateSettings(
-        streamingFrequencyHz: Int? = null,
+        liveStreaming: Boolean? = null,
         notificationsEnabled: Boolean? = null,
         anomalousSpikes: Boolean? = null,
         riskThresholds: Boolean? = null,
@@ -231,9 +231,11 @@ class VitalsViewModel : ViewModel() {
     ) {
         _uiState.update { current ->
             val currentSettings = current.settings
+            val newLiveStreaming = liveStreaming ?: currentSettings.isLiveStreamingEnabled
             current.copy(
+                isStreamingActive = liveStreaming ?: current.isStreamingActive,
                 settings = currentSettings.copy(
-                    streamingFrequencyHz = streamingFrequencyHz ?: currentSettings.streamingFrequencyHz,
+                    isLiveStreamingEnabled = newLiveStreaming,
                     notificationsEnabled = notificationsEnabled ?: currentSettings.notificationsEnabled,
                     anomalousSpikeAlerts = anomalousSpikes ?: currentSettings.anomalousSpikeAlerts,
                     riskThresholdAlerts = riskThresholds ?: currentSettings.riskThresholdAlerts,

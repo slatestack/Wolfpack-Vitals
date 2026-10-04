@@ -62,7 +62,7 @@ fun DashboardScreen(
                     isStreaming = uiState.isStreamingActive,
                     onClick = {
                         viewModel.toggleStreaming()
-                        val msg = if (!uiState.isStreamingActive) "Streaming resumed (64Hz)" else "Streaming paused"
+                        val msg = if (!uiState.isStreamingActive) "Live telemetry resumed" else "Telemetry paused"
                         Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                     }
                 )
