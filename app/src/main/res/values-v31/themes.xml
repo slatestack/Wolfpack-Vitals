@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="Theme.WolfpackVitals" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_wolf_heart</item>
+        <item name="android:windowSplashScreenBackground">@color/white</item>
+    </style>
+
+    <style name="Theme.App.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/white</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_wolf_heart</item>
+        <item name="postSplashScreenTheme">@style/Theme.WolfpackVitals</item>
+    </style>
+</resources>
