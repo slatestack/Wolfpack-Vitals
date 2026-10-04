@@ -9,6 +9,7 @@ data class HeartRateReading(
     val minBpm: Int = 58,
     val maxBpm: Int = 118,
     val selectedRange: String = "24H",
+    val lastUpdatedHour: String? = null,
     val hourlyHistory: List<Pair<String, Int>> = listOf(
         "00:00" to 62, "01:00" to 60, "02:00" to 58, "03:00" to 59,
         "04:00" to 61, "05:00" to 65, "06:00" to 72, "07:00" to 85,
@@ -40,12 +41,12 @@ data class BiomarkerAnalysis(
 )
 
 data class DatabricksPipelineStatus(
-    val pipelineName: String = "Databricks Spark ML",
-    val statusDescription: String = "Processing real-time LightGBM ensemble models on 64Hz stream to assess physiological resilience.",
+    val pipelineName: String = "Databricks LLM",
+    val statusDescription: String = "",
     val riskLabel: String = "Pre-Diabetes Risk:",
     val riskLevelText: String = "Low (X-FuzzEn < 0.1)",
     val isSyncing: Boolean = false,
-    val lastSyncedText: String = "Synced 1m ago",
+    val lastSyncedText: String = "Active",
     val modelAccuracy: String = "91.2%",
     val treeDepth: Int = 8,
     val inferenceLatencyMs: Int = 14,
@@ -59,8 +60,8 @@ data class UserProfile(
     val name: String = "Wolfpack User",
     val id: String = "WOLF-9482-B",
     val initials: String = "WP",
-    val email: String = "wolfpack.researcher@ncsu.edu",
-    val studyCohort: String = "Cohort B - Non-Diabetic Wearable Dynamics",
+    val email: String = "user@ncsu.edu",
+    val studyCohort: String = "",
     val databricksConnected: Boolean = true,
 )
 
@@ -83,27 +84,6 @@ data class ConnectedDevice(
     val batteryPercent: Int,
     val lastSyncTime: String,
     val modalities: String,
-)
-
-data class ResearchStudy(
-    val id: String,
-    val title: String,
-    val institution: String,
-    val irbNumber: String,
-    val isEnrolled: Boolean,
-    val description: String,
-    val requiredSensors: String,
-    val sampleDuration: String,
-)
-
-data class ResearchPublication(
-    val id: String,
-    val title: String,
-    val authors: String,
-    val journal: String,
-    val year: String,
-    val abstractText: String,
-    val doi: String,
 )
 
 data class AppSettings(
@@ -156,7 +136,7 @@ data class DashboardUiState(
             recommendations = listOf(
                 "Incorporate a 10-15 minute moderate walk following meals.",
                 "Prioritize dietary fiber and lean protein with carbohydrate intake.",
-                "Log meal timing in the research tab for correlation with PPG amplitude."
+                "Log meal timing for correlation with continuous telemetry."
             ),
             progress = 0.65f,
             progressColorHex = 0xFFEAB308,
@@ -195,7 +175,7 @@ data class DashboardUiState(
         ConnectedDevice(
             id = "emp_e4_01",
             name = "Empatica EmbracePlus",
-            type = "Wearable Research Sensor",
+            type = "Clinical Continuous Wearable",
             isConnected = true,
             batteryPercent = 88,
             lastSyncTime = "Active (Live 64Hz)",
@@ -218,58 +198,6 @@ data class DashboardUiState(
             batteryPercent = 72,
             lastSyncTime = "Standby (Bluetooth)",
             modalities = "HR, SpO2, Step Cadence"
-        )
-    ),
-    val studies: List<ResearchStudy> = listOf(
-        ResearchStudy(
-            id = "study_bigideas_01",
-            title = "Digital Biomarkers for Pre-Diabetes",
-            institution = "The 4 Aces • NC State",
-            irbNumber = "IRB-2024-8841-A",
-            isEnrolled = true,
-            description = "Longitudinal evaluation of continuous physiological signals (PPG, EDA) to discover non-invasive precursors to type 2 diabetic dysregulation.",
-            requiredSensors = "EmbracePlus / Empatica E4 + CGM",
-            sampleDuration = "90 Days"
-        ),
-        ResearchStudy(
-            id = "study_ans_xfuzzen",
-            title = "Autonomic Dynamics & X-FuzzEn Entropy Validation",
-            institution = "NC State Biomedical Informatics",
-            irbNumber = "IRB-2025-0193-C",
-            isEnrolled = true,
-            description = "Validation of cross-fuzzy entropy mathematical algorithms on high-frequency autonomic streams under acute stress and glucose loading.",
-            requiredSensors = "Continuous EDA (4Hz), ECG/PPG (64Hz)",
-            sampleDuration = "30 Days"
-        ),
-        ResearchStudy(
-            id = "study_glycemic_circadian",
-            title = "Circadian Rhythms & Postprandial Glucose Responses",
-            institution = "Wolfpack Metabolic Research Center",
-            irbNumber = "IRB-2025-4412-B",
-            isEnrolled = false,
-            description = "Investigating time-of-day circadian influences on insulin sensitivity and peripheral microvascular temperature changes.",
-            requiredSensors = "Skin Temperature (4Hz) + CGM",
-            sampleDuration = "60 Days"
-        )
-    ),
-    val publications: List<ResearchPublication> = listOf(
-        ResearchPublication(
-            id = "pub_01",
-            title = "Continuous Cross-Fuzzy Entropy of HR and EDA Unveils Subclinical Glycemic Dysregulation",
-            authors = "The 4 Aces Consortium, NC State University",
-            journal = "Nature Digital Medicine",
-            year = "2025",
-            abstractText = "Nonlinear coupling between cardiac autonomic intervals and electrodermal conductance reveals transient autonomic blunting prior to fasting hyperglycemia. Machine learning ensembles trained on 64Hz multi-sensor feeds achieved an AUC of 0.91 in identifying prediabetic trajectories.",
-            doi = "10.1038/s41746-025-01124-x"
-        ),
-        ResearchPublication(
-            id = "pub_02",
-            title = "Multimodal Wearable Sensor Slopes for Non-Invasive Postprandial Glucose Volatility Tracking",
-            authors = "Biomedical Data Science Group, NC State",
-            journal = "IEEE Transactions on Biomedical Engineering",
-            year = "2025",
-            abstractText = "By fusing 32Hz tri-axial accelerometer data with continuous photoplethysmography and microclimate skin thermometry, postprandial glucose slopes can be estimated with 84% accuracy without capillary blood prick sampling.",
-            doi = "10.1109/TBME.2025.334199"
         )
     ),
     val settings: AppSettings = AppSettings(),

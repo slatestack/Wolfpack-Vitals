@@ -38,8 +38,8 @@ fun DashboardScreen(
 
     // State for interactive dialogs
     var showLogVitalDialog by remember { mutableStateOf(false) }
+    var hourToLog by remember { mutableStateOf<String?>(null) }
     var showExpandedChartDialog by remember { mutableStateOf(false) }
-    var showModelInsightsDialog by remember { mutableStateOf(false) }
     var selectedBiomarkerForDetail by remember { mutableStateOf<BiomarkerAnalysis?>(null) }
     var showScienceInfoDialog by remember { mutableStateOf(false) }
 
@@ -55,7 +55,7 @@ fun DashboardScreen(
             // Live Ingestion Status Banner
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.Start,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 PulsatingStreamingBadge(
@@ -66,25 +66,6 @@ fun DashboardScreen(
                         Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                     }
                 )
-
-                Surface(
-                    color = Color.White,
-                    shape = RoundedCornerShape(8.dp),
-                    shadowElevation = 1.dp
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = "Cohort: ${uiState.userProfile.id}",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = NCStateDarkGray
-                        )
-                    }
-                }
             }
 
             // 1. Average Heart Rate Card
@@ -92,14 +73,23 @@ fun DashboardScreen(
                 avgBpm = uiState.heartRate.avgBpm,
                 restingBpm = uiState.heartRate.restingBpm,
                 isStreaming = uiState.isStreamingActive,
-                onLogClick = { showLogVitalDialog = true }
+                onLogClick = {
+                    hourToLog = null
+                    showLogVitalDialog = true
+                }
             )
 
             // 2. Hourly Heart Rate History Chart
             HeartRateChartCard(
                 history = uiState.heartRate.hourlyHistory,
+                restingBpm = uiState.heartRate.restingBpm,
                 selectedRange = uiState.heartRate.selectedRange,
+                lastUpdatedHour = uiState.heartRate.lastUpdatedHour,
                 onRangeSelected = { range -> viewModel.setTimeRange(range) },
+                onLogHourClick = { hour ->
+                    hourToLog = hour
+                    showLogVitalDialog = true
+                },
                 onExpandClick = { showExpandedChartDialog = true }
             )
 
@@ -127,7 +117,7 @@ fun DashboardScreen(
                     ) {
                         Icon(
                             Icons.Default.Info,
-                            contentDescription = "Research science",
+                            contentDescription = "Methodology info",
                             tint = Color.Gray,
                             modifier = Modifier.size(20.dp)
                         )
@@ -178,13 +168,7 @@ fun DashboardScreen(
 
             // 5. Databricks ML Status Card
             DatabricksMLCard(
-                pipelineStatus = uiState.pipelineStatus,
-                onSyncClick = {
-                    viewModel.syncPipeline {
-                        Toast.makeText(context, "Pipeline execution complete: Risk status updated", Toast.LENGTH_SHORT).show()
-                    }
-                },
-                onInsightsClick = { showModelInsightsDialog = true }
+                pipelineStatus = uiState.pipelineStatus
             )
 
             Spacer(modifier = Modifier.height(60.dp))
@@ -192,7 +176,10 @@ fun DashboardScreen(
 
         // Floating Action Button for Quick Vital Logging
         FloatingActionButton(
-            onClick = { showLogVitalDialog = true },
+            onClick = {
+                hourToLog = null
+                showLogVitalDialog = true
+            },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(20.dp),
@@ -207,10 +194,14 @@ fun DashboardScreen(
     // --- Dialogs ---
     if (showLogVitalDialog) {
         LogVitalDialog(
+            initialHour = hourToLog,
             currentResting = uiState.heartRate.restingBpm,
-            onDismiss = { showLogVitalDialog = false },
-            onSaveVital = { bpm ->
-                viewModel.logManualVital(bpm)
+            onDismiss = {
+                showLogVitalDialog = false
+                hourToLog = null
+            },
+            onSaveVital = { hour, bpm ->
+                viewModel.logManualVital(hour, bpm)
             }
         )
     }
@@ -220,13 +211,6 @@ fun DashboardScreen(
             heartRate = uiState.heartRate,
             onRangeSelected = { range -> viewModel.setTimeRange(range) },
             onDismiss = { showExpandedChartDialog = false }
-        )
-    }
-
-    if (showModelInsightsDialog) {
-        DatabricksModelInsightsDialog(
-            pipelineStatus = uiState.pipelineStatus,
-            onDismiss = { showModelInsightsDialog = false }
         )
     }
 

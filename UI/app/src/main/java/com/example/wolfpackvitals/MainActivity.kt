@@ -1,10 +1,8 @@
 package com.example.wolfpackvitals
 
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -13,7 +11,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -33,8 +30,10 @@ import com.example.wolfpackvitals.data.DashboardUiState
 import com.example.wolfpackvitals.ui.VitalsViewModel
 import com.example.wolfpackvitals.ui.components.SettingsDialog
 import com.example.wolfpackvitals.ui.screens.DashboardScreen
+import com.example.wolfpackvitals.ui.screens.LandingScreen
+import com.example.wolfpackvitals.ui.screens.LoginScreen
 import com.example.wolfpackvitals.ui.screens.ProfileScreen
-import com.example.wolfpackvitals.ui.screens.ResearchScreen
+import com.example.wolfpackvitals.ui.screens.RegisterScreen
 import com.example.wolfpackvitals.ui.theme.*
 
 class MainActivity : ComponentActivity() {
@@ -49,43 +48,95 @@ class MainActivity : ComponentActivity() {
                 val uiState by vitalsViewModel.uiState.collectAsState()
                 var showSettingsDialog by remember { mutableStateOf(false) }
 
+                val navBackStackEntry by navController.currentBackStackEntryAsState()
+                val currentRoute = navBackStackEntry?.destination?.route
+
+                // Only show TopBar and BottomBar on authenticated core screens
+                val showAppChrome = currentRoute in listOf("dashboard", "profile")
+
                 Scaffold(
                     topBar = {
-                        TopHeaderBar(
-                            isSyncing = uiState.pipelineStatus.isSyncing,
-                            onSyncClick = {
-                                vitalsViewModel.syncPipeline {
-                                    Toast.makeText(context, "Stream synced with Databricks ML", Toast.LENGTH_SHORT).show()
+                        if (showAppChrome) {
+                            TopHeaderBar(
+                                onSettingsClick = {
+                                    showSettingsDialog = true
                                 }
-                            },
-                            onSettingsClick = {
-                                showSettingsDialog = true
-                            }
-                        )
+                            )
+                        }
                     },
-                    bottomBar = { BottomNavigationBar(navController = navController) }
+                    bottomBar = {
+                        if (showAppChrome) {
+                            BottomNavigationBar(navController = navController)
+                        }
+                    }
                 ) { innerPadding ->
                     NavHost(
                         navController = navController,
-                        startDestination = "dashboard",
+                        startDestination = "landing",
                         modifier = Modifier.padding(innerPadding)
                     ) {
+                        // 1. Landing Screen (Hero / Welcome Page)
+                        composable("landing") {
+                            LandingScreen(
+                                onNavigateToLogin = { navController.navigate("login") },
+                                onNavigateToRegister = { navController.navigate("register") }
+                            )
+                        }
+
+                        // 2. Sign In Screen
+                        composable("login") {
+                            LoginScreen(
+                                viewModel = vitalsViewModel,
+                                onLoginSuccess = {
+                                    navController.navigate("dashboard") {
+                                        popUpTo("landing") { inclusive = true }
+                                    }
+                                },
+                                onNavigateToRegister = {
+                                    navController.navigate("register") {
+                                        popUpTo("login") { inclusive = true }
+                                    }
+                                },
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+
+                        // 3. Register Screen
+                        composable("register") {
+                            RegisterScreen(
+                                viewModel = vitalsViewModel,
+                                onRegisterSuccess = {
+                                    navController.navigate("dashboard") {
+                                        popUpTo("landing") { inclusive = true }
+                                    }
+                                },
+                                onNavigateToLogin = {
+                                    navController.navigate("login") {
+                                        popUpTo("register") { inclusive = true }
+                                    }
+                                },
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+
+                        // 4. Main Telemetry Dashboard
                         composable("dashboard") {
                             DashboardScreen(
                                 uiState = uiState,
                                 viewModel = vitalsViewModel
                             )
                         }
-                        composable("research") {
-                            ResearchScreen(
-                                uiState = uiState,
-                                viewModel = vitalsViewModel
-                            )
-                        }
+
+                        // 5. User & Wearables Profile
                         composable("profile") {
                             ProfileScreen(
                                 uiState = uiState,
-                                viewModel = vitalsViewModel
+                                viewModel = vitalsViewModel,
+                                onLogout = {
+                                    navController.navigate("landing") {
+                                        popUpTo(0) { inclusive = true }
+                                    }
+                                }
                             )
                         }
                     }
@@ -116,21 +167,8 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TopHeaderBar(
-    isSyncing: Boolean = false,
-    onSyncClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {}
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "headerRotation")
-    val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "headerRotation"
-    )
-
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = NCStateRed,
@@ -153,14 +191,6 @@ fun TopHeaderBar(
             }
         },
         actions = {
-            IconButton(onClick = onSyncClick) {
-                Icon(
-                    imageVector = Icons.Default.Sync,
-                    contentDescription = "Sync Stream",
-                    tint = Color.White,
-                    modifier = if (isSyncing) Modifier.rotate(rotation) else Modifier
-                )
-            }
             IconButton(onClick = onSettingsClick) {
                 Icon(
                     imageVector = Icons.Default.Settings,
@@ -177,7 +207,6 @@ fun TopHeaderBar(
 fun BottomNavigationBar(navController: NavHostController) {
     val items = listOf(
         NavItem("Dashboard", "dashboard", Icons.Default.BarChart),
-        NavItem("Research", "research", Icons.Default.Science),
         NavItem("Profile", "profile", Icons.Default.Person)
     )
 
@@ -223,17 +252,6 @@ fun DashboardScreenPreview() {
                         icon = { Icon(Icons.Default.BarChart, contentDescription = "Dashboard") },
                         label = { Text("Dashboard", fontWeight = FontWeight.Bold, fontSize = 11.sp) },
                         selected = true,
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = NCStateRed,
-                            selectedTextColor = NCStateRed,
-                            indicatorColor = Color(0xFFFEE2E2)
-                        ),
-                        onClick = {}
-                    )
-                    NavigationBarItem(
-                        icon = { Icon(Icons.Default.Science, contentDescription = "Research") },
-                        label = { Text("Research", fontWeight = FontWeight.Bold, fontSize = 11.sp) },
-                        selected = false,
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = NCStateRed,
                             selectedTextColor = NCStateRed,

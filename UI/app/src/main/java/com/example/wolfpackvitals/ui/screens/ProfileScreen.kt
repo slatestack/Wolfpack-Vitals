@@ -28,7 +28,8 @@ import com.example.wolfpackvitals.ui.theme.*
 @Composable
 fun ProfileScreen(
     uiState: DashboardUiState,
-    viewModel: VitalsViewModel
+    viewModel: VitalsViewModel,
+    onLogout: () -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -241,7 +242,7 @@ fun ProfileScreen(
         ) {
             Icon(Icons.Default.ExitToApp, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Switch Participant / Reset Demo", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Text("Log Out / Switch Participant", fontWeight = FontWeight.Bold, fontSize = 14.sp)
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -253,8 +254,8 @@ fun ProfileScreen(
         EditProfileDialog(
             userProfile = uiState.userProfile,
             onDismiss = { showEditProfileDialog = false },
-            onSave = { name, id, email, cohort ->
-                viewModel.updateUserProfile(name, id, email, cohort)
+            onSave = { name, id, email ->
+                viewModel.updateUserProfile(name, id, email)
             }
         )
     }
@@ -320,22 +321,22 @@ fun ProfileScreen(
         AlertDialog(
             onDismissRequest = { showSignOutConfirmation = false },
             title = {
-                Text("Switch Participant?", fontWeight = FontWeight.Bold, color = NCStateDarkGray)
+                Text("Log Out?", fontWeight = FontWeight.Bold, color = NCStateDarkGray)
             },
             text = {
-                Text("Reset active telemetry cache and load default participant credentials (WOLF-9482-B)?", fontSize = 13.sp)
+                Text("Sign out of active session and return to the login screen?", fontSize = 13.sp)
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.updateUserProfile("Wolfpack User", "WOLF-9482-B", "user@ncsu.edu", "Cohort B - Non-Diabetic Wearable Dynamics")
-                        viewModel.setTimeRange("24H")
-                        Toast.makeText(context, "Participant session reset to default", Toast.LENGTH_SHORT).show()
+                        viewModel.logout()
+                        Toast.makeText(context, "Logged out successfully", Toast.LENGTH_SHORT).show()
                         showSignOutConfirmation = false
+                        onLogout()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = NCStateRed)
                 ) {
-                    Text("Reset Participant", color = Color.White)
+                    Text("Log Out", color = Color.White)
                 }
             },
             dismissButton = {

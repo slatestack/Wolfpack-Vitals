@@ -6,6 +6,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -422,6 +423,17 @@ fun ExpandedChartDialog(
                     StatBox(label = "Min / Max", value = "${heartRate.minBpm} - ${heartRate.maxBpm}", color = Color(0xFF2563EB), modifier = Modifier.weight(1f))
                 }
 
+                // Interactive High-Res Telemetry Chart
+                HeartRateTelemetryGraph(
+                    history = heartRate.hourlyHistory,
+                    restingBpm = heartRate.restingBpm,
+                    selectedRange = heartRate.selectedRange,
+                    lastUpdatedHour = heartRate.lastUpdatedHour,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                )
+
                 // Cardio Zones Breakdown
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Physiological Heart Rate Zones", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = NCStateDarkGray)
@@ -501,12 +513,23 @@ private fun ZoneRow(name: String, percentage: String, color: Color) {
 // -----------------------------------------------------------------------------
 @Composable
 fun LogVitalDialog(
+    initialHour: String? = null,
     currentResting: Int,
     onDismiss: () -> Unit,
-    onSaveVital: (Int) -> Unit
+    onSaveVital: (String, Int) -> Unit
 ) {
     val context = LocalContext.current
+    val currentSystemHour = remember {
+        String.format("%02d:00", java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY))
+    }
+    var selectedHour by remember(initialHour) {
+        mutableStateOf(initialHour ?: currentSystemHour)
+    }
     var bpmValue by remember { mutableFloatStateOf(72f) }
+
+    val allHours = remember {
+        (0..23).map { String.format("%02d:00", it) }
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -515,17 +538,92 @@ fun LogVitalDialog(
             modifier = Modifier.fillMaxWidth(0.92f)
         ) {
             Column(
-                modifier = Modifier.padding(22.dp),
+                modifier = Modifier
+                    .padding(22.dp)
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("Log Manual Heart Rate", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = NCStateDarkGray)
-                Text("Simulate a wearable sensor checkpoint reading", fontSize = 12.sp, color = Color.Gray)
+                Text("Log Heart Rate Reading", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = NCStateDarkGray)
+                Text(
+                    text = "Record or update an hourly reading to reflect on the telemetry graph",
+                    fontSize = 12.sp,
+                    color = Color.Gray,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+
+                // 1. Hour Selection Section
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Select Target Hour:", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = NCStateDarkGray)
+                        Surface(
+                            color = NCStateRed.copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = selectedHour,
+                                color = NCStateRed,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+
+                    // Horizontal scrollable hour chips
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        allHours.forEach { hour ->
+                            val isSelected = (selectedHour == hour)
+                            val isCurrent = (hour == currentSystemHour)
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { selectedHour = hour },
+                                label = {
+                                    Text(
+                                        text = if (isCurrent) "$hour (Now)" else hour,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSelected || isCurrent) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = NCStateRed,
+                                    selectedLabelColor = Color.White
+                                )
+                            )
+                        }
+                    }
+                }
+
+                // 2. Large BPM Readout with Zone Indicator
+                val zoneName = when {
+                    bpmValue < 60 -> "Resting Baseline"
+                    bpmValue < 100 -> "Normal / Fat Burn"
+                    bpmValue < 140 -> "Cardio Aerobic"
+                    else -> "Peak Sympathetic"
+                }
+                val zoneColor = when {
+                    bpmValue < 60 -> Color(0xFF3B82F6)
+                    bpmValue < 100 -> Color(0xFF10B981)
+                    bpmValue < 140 -> Color(0xFFF59E0B)
+                    else -> NCStateRed
+                }
 
                 Surface(
                     color = Color(0xFFFEF2F2),
                     shape = CircleShape,
-                    modifier = Modifier.size(90.dp)
+                    modifier = Modifier.size(96.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -535,6 +633,20 @@ fun LogVitalDialog(
                     }
                 }
 
+                Surface(
+                    color = zoneColor.copy(alpha = 0.12f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = zoneName,
+                        color = zoneColor,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+
+                // 3. Slider
                 Slider(
                     value = bpmValue,
                     onValueChange = { bpmValue = it },
@@ -543,22 +655,29 @@ fun LogVitalDialog(
                     colors = SliderDefaults.colors(thumbColor = NCStateRed, activeTrackColor = NCStateRed)
                 )
 
-                // Quick Presets
+                // 4. Quick Presets
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    listOf(60, 72, 85, 115).forEach { preset ->
+                    listOf(
+                        60 to "Rest",
+                        72 to "Normal",
+                        85 to "Active",
+                        115 to "Cardio",
+                        140 to "Peak"
+                    ).forEach { (preset, label) ->
                         OutlinedButton(
                             onClick = { bpmValue = preset.toFloat() },
                             shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)
                         ) {
-                            Text("$preset", fontSize = 12.sp, color = NCStateDarkGray)
+                            Text("$preset", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = NCStateDarkGray)
                         }
                     }
                 }
 
+                // 5. Action Buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -572,20 +691,35 @@ fun LogVitalDialog(
                     }
                     Button(
                         onClick = {
-                            onSaveVital(bpmValue.toInt())
-                            Toast.makeText(context, "Recorded vital: ${bpmValue.toInt()} BPM", Toast.LENGTH_SHORT).show()
+                            onSaveVital(selectedHour, bpmValue.toInt())
+                            Toast.makeText(context, "Updated $selectedHour reading: ${bpmValue.toInt()} BPM", Toast.LENGTH_SHORT).show()
                             onDismiss()
                         },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = NCStateRed)
                     ) {
-                        Text("Record", color = Color.White)
+                        Text("Record", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             }
         }
     }
+}
+
+// Backward-compatible overload
+@Composable
+fun LogVitalDialog(
+    currentResting: Int,
+    onDismiss: () -> Unit,
+    onSaveVital: (Int) -> Unit
+) {
+    LogVitalDialog(
+        initialHour = null,
+        currentResting = currentResting,
+        onDismiss = onDismiss,
+        onSaveVital = { _, bpm -> onSaveVital(bpm) }
+    )
 }
 
 // -----------------------------------------------------------------------------
@@ -679,286 +813,18 @@ private fun MetricRow(label: String, value: String) {
 }
 
 // -----------------------------------------------------------------------------
-// 6. Data Export Dialog & Simulation
-// -----------------------------------------------------------------------------
-@Composable
-fun ExportDataDialog(
-    onDismiss: () -> Unit
-) {
-    val context = LocalContext.current
-    var selectedFormat by remember { mutableStateOf("CSV") }
-    var selectedRange by remember { mutableStateOf("Last 30 Days") }
-    var isExporting by remember { mutableStateOf(false) }
-    var exportProgress by remember { mutableFloatStateOf(0f) }
-    var exportFinished by remember { mutableStateOf(false) }
-    val coroutineScope = rememberCoroutineScope()
-
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = CardBackground),
-            modifier = Modifier.fillMaxWidth(0.92f)
-        ) {
-            Column(
-                modifier = Modifier
-                    .padding(22.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(Icons.Default.FileDownload, contentDescription = null, tint = NCStateRed)
-                        Text("Export Research Telemetry", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = NCStateDarkGray)
-                    }
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.Gray)
-                    }
-                }
-
-                HorizontalDivider(color = Color(0xFFE5E7EB))
-
-                if (!exportFinished) {
-                    // Format Picker
-                    Text("Export File Format", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = NCStateDarkGray)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        listOf("CSV", "JSON", "Parquet", "PDF Report").forEach { format ->
-                            FilterChip(
-                                selected = selectedFormat == format,
-                                onClick = { selectedFormat = format },
-                                label = { Text(format, fontSize = 12.sp) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = NCStateRed,
-                                    selectedLabelColor = Color.White
-                                )
-                            )
-                        }
-                    }
-
-                    // Range Picker
-                    Text("Telemetry Timeline", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = NCStateDarkGray)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        listOf("Today", "7 Days", "Last 30 Days").forEach { range ->
-                            FilterChip(
-                                selected = selectedRange == range,
-                                onClick = { selectedRange = range },
-                                label = { Text(range, fontSize = 12.sp) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = NCStateDarkGray,
-                                    selectedLabelColor = Color.White
-                                )
-                            )
-                        }
-                    }
-
-                    if (isExporting) {
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text("Compiling ${selectedFormat} archive...", fontSize = 12.sp, color = Color.Gray)
-                            LinearProgressIndicator(
-                                progress = { exportProgress },
-                                modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
-                                color = NCStateRed,
-                                trackColor = BackgroundGray
-                            )
-                        }
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = onDismiss,
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(10.dp),
-                            enabled = !isExporting
-                        ) {
-                            Text("Cancel")
-                        }
-                        Button(
-                            onClick = {
-                                isExporting = true
-                                coroutineScope.launch {
-                                    for (i in 1..10) {
-                                        delay(120)
-                                        exportProgress = i / 10f
-                                    }
-                                    isExporting = false
-                                    exportFinished = true
-                                }
-                            },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = NCStateRed),
-                            enabled = !isExporting
-                        ) {
-                            Text(if (isExporting) "Exporting..." else "Download", color = Color.White)
-                        }
-                    }
-                } else {
-                    // Export Success Card
-                    Surface(
-                        color = Color(0xFFDCFCE7),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = StableGreen, modifier = Modifier.size(36.dp))
-                            Text("Export Completed", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF166534))
-                            Text(
-                                "wolfpack_vitals_${selectedRange.lowercase().replace(' ', '_')}.${selectedFormat.lowercase().take(3)}",
-                                fontSize = 12.sp,
-                                color = Color(0xFF166534)
-                            )
-                            Text("234,510 physiological samples • 4.2 MB", fontSize = 11.sp, color = Color(0xFF15803D))
-                        }
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = {
-                                Toast.makeText(context, "Export shared to clinical records", Toast.LENGTH_SHORT).show()
-                                onDismiss()
-                            },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Share")
-                        }
-                        Button(
-                            onClick = onDismiss,
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = NCStateDarkGray)
-                        ) {
-                            Text("Done", color = Color.White)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-// -----------------------------------------------------------------------------
-// 7. Research Study Detail Dialog
-// -----------------------------------------------------------------------------
-@Composable
-fun StudyDetailDialog(
-    study: ResearchStudy,
-    onToggleEnrollment: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    val context = LocalContext.current
-
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = CardBackground),
-            modifier = Modifier.fillMaxWidth(0.92f)
-        ) {
-            Column(
-                modifier = Modifier
-                    .padding(22.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(study.title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = NCStateDarkGray)
-                        Text(study.institution, fontSize = 13.sp, color = Color.Gray)
-                    }
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.Gray)
-                    }
-                }
-
-                Surface(color = BackgroundGray, shape = RoundedCornerShape(8.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("IRB Protocol: ${study.irbNumber}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = NCStateDarkGray)
-                        Text("Duration: ${study.sampleDuration}", fontSize = 12.sp, color = Color.Gray)
-                    }
-                }
-
-                Text("Study Overview", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = NCStateDarkGray)
-                Text(study.description, fontSize = 13.sp, color = Color(0xFF4B5563), lineHeight = 18.sp)
-
-                Text("Required Sensors", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = NCStateDarkGray)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Icon(Icons.Default.Science, contentDescription = null, tint = NCStateRed, modifier = Modifier.size(18.dp))
-                    Text(study.requiredSensors, fontSize = 13.sp, color = NCStateDarkGray, fontWeight = FontWeight.Medium)
-                }
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Button(
-                    onClick = {
-                        onToggleEnrollment()
-                        val msg = if (study.isEnrolled) "Withdrawn from study cohort" else "Enrolled in study cohort"
-                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                        onDismiss()
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (study.isEnrolled) Color(0xFFDC2626) else NCStateRed
-                    )
-                ) {
-                    Text(if (study.isEnrolled) "Withdraw from Cohort" else "Accept Protocol & Enroll", color = Color.White)
-                }
-            }
-        }
-    }
-}
-
-// -----------------------------------------------------------------------------
 // 8. Edit Profile Dialog
 // -----------------------------------------------------------------------------
 @Composable
 fun EditProfileDialog(
     userProfile: UserProfile,
     onDismiss: () -> Unit,
-    onSave: (String, String, String, String) -> Unit
+    onSave: (String, String, String) -> Unit
 ) {
     val context = LocalContext.current
     var name by remember { mutableStateOf(userProfile.name) }
     var participantId by remember { mutableStateOf(userProfile.id) }
     var email by remember { mutableStateOf(userProfile.email) }
-    var cohort by remember { mutableStateOf(userProfile.studyCohort) }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -998,14 +864,6 @@ fun EditProfileDialog(
                     shape = RoundedCornerShape(10.dp)
                 )
 
-                OutlinedTextField(
-                    value = cohort,
-                    onValueChange = { cohort = it },
-                    label = { Text("Research Cohort") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp)
-                )
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -1019,7 +877,7 @@ fun EditProfileDialog(
                     }
                     Button(
                         onClick = {
-                            onSave(name, participantId, email, cohort)
+                            onSave(name, participantId, email)
                             Toast.makeText(context, "Profile updated", Toast.LENGTH_SHORT).show()
                             onDismiss()
                         },
