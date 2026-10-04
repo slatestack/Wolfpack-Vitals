@@ -1,154 +1,112 @@
-# Patient 16 hourly replay
+# Patient 16 dashboard replay
 
-The dashboard badge starts one hour of Patient 16 replay, pauses it, and resumes
-the same session. The existing StateFlow/ViewModel and Compose layout are retained.
-The current heart-rate card displays the replay's running hourly mean. Existing
-historical charts, manual logging, authentication, profile, and settings remain available.
-The replay does not read hardware, generate random health values, interpolate values,
-or use the chart's demonstration history as input to predictions.
+The existing start/pause control starts an hour, pauses collection, resumes the same session,
+and starts a clean session after completion. Only foreground active time counts. The dashboard
+keeps its cards, chart, style toggle, expanded view, range chips, and biomarker filters.
+Timers, request counts, raw averages, send timestamps, API text, and replay toasts are hidden.
 
-## CSV sources and filtering
+## Chart collection
 
-The build packages these four original repository files as Android assets, without
-maintaining duplicate CSV copies:
+The graph starts empty. A separate five-minute HR sum/count adds the interval average at
+5, 10, …, 60 active minutes, labelled `0–5m`, `5–10m`, …, `55–60m`. A full session contains
+12 readings. Chart updates do not depend on network results. A single reading draws one
+point or bar; paths start at two readings. An empty chart has no resting-reference line.
+All time ranges select collected readings. Style selection is shared with the expanded chart.
 
-| Source in `local-database/patient-16-data/` | Reading | Valid records |
-| --- | --- | ---: |
-| `HR_016.csv` | `hr` -> heartbeat | 499 |
-| `Dexcom_016.csv` | `Glucose Value`, only `Event Type == EGV` -> glucose | 488 |
-| `IBI_016.csv` | `ibi` -> interbeat interval | 499 |
-| `ACC_016.csv` | `acc_x`, `acc_y`, `acc_z`, retained together | 499 |
+`HourAccumulator` continues to retain the existing cumulative hourly HR, glucose, IBI,
+and three-axis ACC means. The legacy replay consumes one row per modality per active second
+and loops short excerpts for compatibility with these means and chart playback. This is
+replay time, not a claim of a physiological hour. These means are included as
+`cumulative_replay_averages` in POST payloads and are **excluded from model inference**.
 
-`CsvPatient16DataSource` locates columns by header name, handles CRLF, quoted commas,
-escaped quotes, and empty fields, and retains valid rows in their original order.
-Numeric values must be finite; heart rate, glucose, and IBI must also be positive.
-ACC accepts signed values and zero, and requires all three axes to be valid.
-Dexcom metadata, alerts (including numeric thresholds), insulin, and every other
-non-EGV event are excluded before parsing glucose. Missing columns or an empty
-valid modality produce an observable data error; no replacement readings are generated.
-CSV parsing runs on `Dispatchers.IO`, outside Compose.
+## Source windows
 
-## Replay and aggregation
+Gradle packages HR, Dexcom, IBI, ACC, EDA, and TEMP if present directly from
+`local-database/patient-16-data`. No duplicate CSV copies are maintained. Valid EDA zeroes
+are retained. Glucose includes only EGV readings; ACC keeps all three signed axes.
+Invalid/nonfinite readings are excluded. Missing optional EDA/TEMP files stay missing.
+Timestamped source series keep their original timestamps and units: bpm, mg/dL, seconds,
+microSiemens (`uS`), raw acceleration device counts, and Celsius when a TEMP file exists.
+ACC is never silently converted to g. CSVs do not document timezone offsets; their clock
+basis remains `source_local_unspecified`, preventing unverified alignment from reaching inference.
 
-Each active second consumes one next valid row from each modality. Each modality
-wraps independently to its first valid row when its own finite excerpt ends.
-No timestamps are joined or aligned, and the replay cadence does not claim to
-reproduce the original hardware sampling rates. A new hour starts from the first
-valid row of each file.
+Each analysis window starts at the first HR source timestamp and ends at that timestamp plus
+active elapsed time. Readings are selected on this one clock in a half-open interval, never
+by independent row indices. Source windows do not loop, pad, interpolate, or invent values.
+IBI sequences and temporal HR/EDA relationships remain available to a deployed workflow.
+Meal/carbohydrate context is retained if present. No temperature recording is currently local.
 
-`HourAccumulator` retains six arithmetic sums and the processed count: heartbeat,
-glucose, IBI, ACC X, ACC Y, and ACC Z. Each average is its corresponding sum divided
-by its count. At 5, 10, ..., 60 active minutes, `Patient16ReplaySession` takes an
-immutable snapshot of all readings accumulated since the start of the hour.
-**Sending a five-minute snapshot never resets the hour accumulator or replay positions.**
-The first snapshot contains 300 readings per modality, the second contains 600,
-and the final full-hour snapshot contains 3,600. A new session creates a fresh
-accumulator and resets the session's send status.
+| Local sensor | Rows | Source span |
+| --- | ---: | --- |
+| HR | 499 | 2020-07-16 09:29:13–09:37:31 |
+| EDA | 499 | 09:29:03–09:31:07.500 |
+| ACC | 499 | 09:29:03–09:29:18.562500 |
+| IBI | 499 | 09:30:51.629972–09:54:25.350935 |
+| Glucose | 488 EGV | Different recording span; filtered by source timestamps |
+| TEMP | 0 | Missing |
 
-## Timing, lifecycle, and network failures
+## API and dashboard results
 
-One `replayJob` in `VitalsViewModel.viewModelScope` drives the session using coroutine
-delay and a monotonic active clock (`SystemClock.uptimeMillis`). No request is sent
-on start. Five-minute deadlines are relative to active session time, and all 12
-deadlines include an exact aggregate snapshot even if a coroutine wake-up is late.
-The final request is initiated at 60 active minutes, the session becomes completed,
-and the replay job exits. Network completion status can arrive afterward.
+`GET /make_prediction` retains its four original query parameters and string response for
+compatibility. Replay and manual sync use the new `POST /make_prediction` in the same FastAPI
+service. See [API contract and integration](Api/DASHBOARD_API.md).
 
-Tapping pause checkpoints any partial active second, freezes both timers, keeps
-the session object, sums, and row positions, and suspends the job on StateFlow.
-Resume continues that same hour. Activity resume/pause events also gate the clock,
-so background and paused wall-clock time do not contribute to either timer.
-Configuration changes keep the ViewModel session; process death does not persist
-an unfinished session to disk.
+A request identifies patient `16`, a fresh UUID session, completed interval number, source
+window, per-sensor units/coverage/readings, meal context, features, and compatibility averages.
+The API returns independent `hr_eda`, `glucose_variability`, `hrv`, and `prediabetes_risk` results.
+The client validates each result separately and checks the response identity before binding it.
 
-OkHttp performs requests asynchronously, allowing the session to keep aggregating
-while a response is pending. Each call has a 30-second timeout. Connection retries
-and redirects are disabled; a failed send is recorded and the next request occurs
-at the next normal deadline, without resending the failed snapshot. Pausing or
-leaving the foreground cancels in-flight calls without retrying them; a request
-already received by the server cannot be undone. Clearing the ViewModel also
-cancels calls. Responses from an older session cannot overwrite a new session's status.
+All cards start at **Collecting data**, with empty bars and null confidence. Available model
+categories drive badge, color, severity, and filter membership together. Typical/low are
+**Stable**; moderate/elevated/high are **Monitoring**, with actual severity shown separately
+and high colored red. Positions and reference ranges come from validated model configuration.
+HRV highlights only a model-supplied restorative range. LF/HF is not treated as a universal
+sympathovagal/restorative measure. Postmeal-spike language requires explicit model support.
+Unsupported/failed results become **Unavailable**. A retained previous result becomes
+**Outdated** and is excluded from Stable/Monitoring filters. Confidence is populated only
+from validated model confidence; risk probability is a separate detail field.
 
-`DashboardUiState.replay` exposes inactive/running/paused/completed phases, loading
-and foreground state, active elapsed time, remaining hour time, next-send countdown,
-attempted/completed/successful request counts, last successful send time, latest API
-error, data-load error, and running averages. The badge and Toast messages identify
-Patient 16 replay and hourly averaging. The dashboard shows timers and send errors.
+Manual sync sends the last completed source window through the same analysis client.
+Asynchronous OkHttp requests do not block collection. Session, completed interval, refresh
+attempt, and cancellation-generation guards reject stale callbacks. Pause/background cancel
+pending requests; resume continues aggregation. The client allows 150 seconds overall,
+130 seconds reading, and 10 seconds connecting. Server inference defaults to 120 seconds
+plus a bounded 10-second deployment verification. Actual model latency cannot be measured
+until an applicable workflow exists; operators should tune both budgets together.
 
-## Request format and configuration
+## Verified Databricks capabilities
 
-The existing `Api/main.py` endpoint is unchanged:
+The live audit on 2026-10-04 found five sensor tables and an HbA1c label table, patient IDs
+1–15, no patient 16 rows, no carbohydrate events, no temperature table, no threshold tables,
+no registered models/functions in `workspace.wolfpack-vitals`, no scheduled jobs/pipelines,
+and only general foundation-model serving endpoints. Inspected project notebooks contained
+empty stubs and a generated ACC exploration query, not a prediction/calculation workflow.
+See [audit evidence](Api/databricks_verification.json) and the read-only
+[verification script](Api/verify_databricks.py). The presence of Genie query access does not
+verify deployment of clinical models. The API deliberately returns unavailable results
+until associated models, thresholds, clock alignment, and required source coverage are verified.
 
-```text
-GET /make_prediction?heartbeat=<mean, 2 decimals>&glucose=<mean, 2 decimals>&Interbeat_interval=<mean, 4 decimals>&ACC=x=<mean X, 2 decimals>,y=<mean Y, 2 decimals>,z=<mean Z, 2 decimals>
-```
+## Running and verification
 
-`PredictionPayload` uses `Locale.US` decimal formatting and OkHttp's
-`addQueryParameter` encodes each parameter. For the current repository files, the
-first five-minute request is:
-
-```text
-/make_prediction?heartbeat=82.06&glucose=107.93&Interbeat_interval=0.7810&ACC=x%3D-38.80%2Cy%3D-5.77%2Cz%3D7.92
-```
-
-These values are calculated, not hardcoded. The final hour's rounded values are
-heartbeat `76.90`, glucose `106.45`, IBI `0.7869`, and ACC
-`x=-38.16,y=0.01,z=8.18`.
-
-The base URL is configured in `UI/app/build.gradle.kts` with the `fastApiBaseUrl`
-Gradle property, which generates `BuildConfig.FASTAPI_BASE_URL`. Its default is
-`http://10.0.2.2:8000/`, the Android emulator's route to the host's FastAPI server.
-Override it for a physical device or deployed server:
+From the repository root:
 
 ```sh
-bash ./gradlew :UI:app:assembleDebug -PfastApiBaseUrl=https://your-api.example/
+python -m uvicorn Api.main:app --host 0.0.0.0 --port 8000
+python -m unittest discover -s Api/tests -v
+bash ./gradlew :UI:app:testDebugUnitTest :UI:app:assembleDebug
+bash ./gradlew :UI:app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.wolfpackvitals.ui.DashboardVerificationTest
 ```
 
-The manifest grants Internet access and permits HTTP for the local development
-endpoint. No credentials or secrets are added.
+Set `ANDROID_HOME` to an installed SDK. `-PfastApiBaseUrl=https://your-api.example/` overrides
+the default emulator URL `http://10.0.2.2:8000/`. The native UI verification captures charts,
+cards, and detail dialogs under the app external-files `dashboard-verification` directory.
+Test predictions and thresholds are explicitly synthetic fixtures and never shipped as
+clinical configuration. Unit/API tests cover collection, twelve intervals, interval vs hourly
+means, pause/background/resume/restart, filters/styles, failures, partial results, out-of-order
+responses, refresh guards, missing temperature, null confidence, and threshold boundaries.
 
-## Files changed
-
-Modified:
-
-- `UI/app/build.gradle.kts`
-- `UI/app/src/main/AndroidManifest.xml`
-- `UI/app/src/main/java/com/example/wolfpackvitals/MainActivity.kt`
-- `UI/app/src/main/java/com/example/wolfpackvitals/data/VitalsData.kt`
-- `UI/app/src/main/java/com/example/wolfpackvitals/ui/VitalsViewModel.kt`
-- `UI/app/src/main/java/com/example/wolfpackvitals/ui/components/CurrentHeartRateCard.kt`
-- `UI/app/src/main/java/com/example/wolfpackvitals/ui/components/PulsatingStreamingBadge.kt`
-- `UI/app/src/main/java/com/example/wolfpackvitals/ui/screens/DashboardScreen.kt`
-
-Added:
-
-- `PATIENT_16_REPLAY.md`
-- `UI/app/src/main/java/com/example/wolfpackvitals/data/replay/Patient16DataSource.kt`
-- `UI/app/src/main/java/com/example/wolfpackvitals/data/replay/Patient16ReplaySession.kt`
-- `UI/app/src/main/java/com/example/wolfpackvitals/data/replay/HourAccumulator.kt`
-- `UI/app/src/main/java/com/example/wolfpackvitals/data/network/PredictionClient.kt`
-- `UI/app/src/main/java/com/example/wolfpackvitals/ui/components/Patient16ReplayStatus.kt`
-- `UI/app/src/test/java/com/example/wolfpackvitals/data/replay/Patient16DataSourceTest.kt`
-- `UI/app/src/test/java/com/example/wolfpackvitals/data/replay/Patient16ReplaySessionTest.kt`
-- `UI/app/src/test/java/com/example/wolfpackvitals/data/network/PredictionClientTest.kt`
-- `UI/app/src/test/java/com/example/wolfpackvitals/ui/VitalsViewModelReplayTest.kt`
-
-## Verification
-
-On October 4, 2026, the Android debug APK built and all 14 unit tests passed
-(13 replay/network tests plus the existing unit test):
-
-```sh
-ANDROID_HOME=/tmp/wolfpack-vitals-sdk bash ./gradlew :UI:app:testDebugUnitTest :UI:app:assembleDebug --console=plain
-```
-
-A temporary Android SDK was installed outside the repository to run the build.
-The repository's existing Windows `local.properties` SDK path was preserved;
-`ANDROID_HOME` supplied the Mac build's SDK. Existing deprecation/SDK-path warnings
-did not prevent compilation. Tests use virtual time to cover the full hour, all
-12 snapshots against independently computed repository-data means, independent
-dataset wrapping, all ACC axes, EGV filtering, partial seconds, 13-minute pause,
-background suspension, rapid pause/resume without another session, new-hour restart,
-continued aggregation during in-flight requests, network failure handling, exact
-query names, URL encoding, and decimal formatting. HTTP tests use MockWebServer;
-no requests were sent to the production prediction service.
+Latest verification (2026-10-04): debug APK build, 26 Android unit tests, 20 API tests,
+and 3 native Compose tests passed. Native captures cover moderate/high glucose severity,
+model-defined HRV range highlighting, and confidence/probability separation with explicitly
+synthetic fixtures. Existing APK and updated screenshots were compared; labels fit and
+replay diagnostics remain hidden. No applicable live prediction model was found.

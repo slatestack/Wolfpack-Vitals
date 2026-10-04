@@ -2,13 +2,28 @@ from fastapi import FastAPI
 from google import genai
 from databricks.sdk import WorkspaceClient
 from dotenv import load_dotenv
-from google.genai._gaos.types.interactions import interaction
 import os
+from pathlib import Path
 
+if __package__:
+    from .contracts import DashboardRequest, DashboardResponse
+    from .dashboard_analysis import DatabricksDashboardAnalyzer
+else:  # Preserve uvicorn main:app launched from the Api directory.
+    from contracts import DashboardRequest, DashboardResponse
+    from dashboard_analysis import DatabricksDashboardAnalyzer
+
+load_dotenv(Path(__file__).with_name('.env'))
 app = FastAPI()
+app.state.dashboard_analyzer = DatabricksDashboardAnalyzer()
+
+@app.post("/make_prediction", response_model=DashboardResponse)
+def make_dashboard_prediction(request: DashboardRequest):
+    # FastAPI runs synchronous endpoints in its worker pool, keeping the event loop free.
+    return app.state.dashboard_analyzer.analyze(request)
+
 
 @app.get("/make_prediction")
-async def make_prediction(heartbeat: str, glucose: str, Interbeat_interval: str, ACC: str)->str:
+def make_prediction(heartbeat: str, glucose: str, Interbeat_interval: str, ACC: str)->str:
 
     load_dotenv()
     space_id = os.getenv("space_id")

@@ -3,22 +3,18 @@ package com.example.wolfpackvitals.data
 import androidx.compose.ui.graphics.Color
 import com.example.wolfpackvitals.ui.theme.*
 import com.example.wolfpackvitals.data.replay.Patient16ReplayState
+import com.example.wolfpackvitals.data.network.MetricResult
+import java.util.Locale
 
 data class HeartRateReading(
-    val avgBpm: Int = 70,
+    val avgBpm: Int = 0,
     val restingBpm: Int = 61,
-    val minBpm: Int = 58,
-    val maxBpm: Int = 118,
+    val minBpm: Int = 0,
+    val maxBpm: Int = 0,
     val selectedRange: String = "24H",
+    val isLineMode: Boolean = true,
     val lastUpdatedHour: String? = null,
-    val hourlyHistory: List<Pair<String, Int>> = listOf(
-        "00:00" to 62, "01:00" to 60, "02:00" to 58, "03:00" to 59,
-        "04:00" to 61, "05:00" to 65, "06:00" to 72, "07:00" to 85,
-        "08:00" to 98, "09:00" to 88, "10:00" to 92, "11:00" to 105,
-        "12:00" to 118, "13:00" to 110, "14:00" to 95, "15:00" to 88,
-        "16:00" to 82, "17:00" to 78, "18:00" to 92, "19:00" to 106,
-        "20:00" to 85, "21:00" to 76, "22:00" to 70, "23:00" to 65
-    ),
+    val hourlyHistory: List<Pair<String, Int>> = emptyList(),
 )
 
 data class BiomarkerAnalysis(
@@ -31,7 +27,7 @@ data class BiomarkerAnalysis(
     val description: String,
     val clinicalInsight: String = "",
     val referenceRange: String = "",
-    val confidenceScore: String = "94%",
+    val confidenceScore: String = "—",
     val recommendations: List<String> = emptyList(),
     val progress: Float,
     val progressColorHex: Long = 0xFF3B82F6,
@@ -39,22 +35,27 @@ data class BiomarkerAnalysis(
     val centerLabel: String = "",
     val rightLabel: String,
     val rightLabelIsRed: Boolean = false,
+    val result: MetricResult? = null,
+    val severity: String? = null,
+    val restorativeStart: Float? = null,
+    val restorativeEnd: Float? = null,
+    val modelVersion: String? = null,
+    val thresholdVersion: String? = null,
+    val windowId: String? = null,
+    val riskProbabilityText: String = "—",
+
 )
 
 data class DatabricksPipelineStatus(
-    val pipelineName: String = "Databricks LLM",
+    val pipelineName: String = "Prediabetes Risk Estimate",
     val statusDescription: String = "",
-    val riskLabel: String = "Pre-Diabetes Risk:",
-    val riskLevelText: String = "Low (X-FuzzEn < 0.1)",
+    val riskLabel: String = "Prediabetes risk:",
+    val riskLevelText: String = "Collecting data",
     val isSyncing: Boolean = false,
-    val lastSyncedText: String = "Active",
-    val modelAccuracy: String = "91.2%",
-    val treeDepth: Int = 8,
-    val inferenceLatencyMs: Int = 14,
-    val sampleRateHz: Int = 64,
-    val activeWorkers: Int = 8,
-    val clusterStatus: String = "Running (Online)",
-    val workspaceUrl: String = "dbc-wolfpack-vitals.cloud.databricks.com"
+    val lastSyncedText: String = "Collecting data",
+    val clusterStatus: String = "Awaiting analysis",
+    val workspaceUrl: String = "Unavailable",
+    val analysis: BiomarkerAnalysis = initialAnalysis("prediabetes_risk")
 )
 
 data class UserProfile(
@@ -63,7 +64,7 @@ data class UserProfile(
     val initials: String = "WP",
     val email: String = "user@ncsu.edu",
     val studyCohort: String = "",
-    val databricksConnected: Boolean = true,
+    val databricksConnected: Boolean = false,
 )
 
 data class HealthProfile(
@@ -101,73 +102,7 @@ data class AppSettings(
 data class DashboardUiState(
     val heartRate: HeartRateReading = HeartRateReading(),
     val biomarkers: List<BiomarkerAnalysis> = listOf(
-        BiomarkerAnalysis(
-            id = "hr_eda_entropy",
-            title = "HR-EDA",
-            subtitle = "Cross-Fuzzy Entropy",
-            badgeText = "Stable",
-            badgeBg = StableGreenBg,
-            badgeColor = StableGreen,
-            description = "Elevated HR-EDA coupling in the hypoglycemic range can be an early marker of prediabetic dysregulation.",
-            clinicalInsight = "Cross-Fuzzy Entropy evaluates non-linear synchronization between autonomic cardiac acceleration and electrodermal sympathetic bursts. Normal values (< 0.12) signify healthy autonomic tone and glycemic homeostasis.",
-            referenceRange = "0.02 - 0.12 (Normal)",
-            confidenceScore = "94.6%",
-            recommendations = listOf(
-                "Autonomic nervous balance is within optimal limits.",
-                "Maintain steady hydration to support accurate baseline EDA conductance.",
-                "Continue nightly sleep schedule of 7-8 hours to stabilize baseline tone."
-            ),
-            progress = 0.35f,
-            progressColorHex = 0xFF3B82F6,
-            leftLabel = "Normoglycemic Pattern",
-            rightLabel = "Elevated Risk",
-            rightLabelIsRed = true,
-        ),
-        BiomarkerAnalysis(
-            id = "glycemic_volatility",
-            title = "Glycemic Volatility",
-            subtitle = "Postprandial Slope",
-            badgeText = "Monitoring",
-            badgeBg = VolatilityYellowBg,
-            badgeColor = VolatilityYellow,
-            description = "Fused multimodal features (HR, ACC, Temp, EDA) predicting postprandial interstitial glucose slopes.",
-            clinicalInsight = "Multimodal physiological sensors detect rapid glycemic excursions following carbohydrate intake before conventional symptoms occur. Moderate volatility suggests postprandial glycemic spikes.",
-            referenceRange = "< 15 mg/dL/hr variance",
-            confidenceScore = "89.1%",
-            recommendations = listOf(
-                "Incorporate a 10-15 minute moderate walk following meals.",
-                "Prioritize dietary fiber and lean protein with carbohydrate intake.",
-                "Log meal timing for correlation with continuous telemetry."
-            ),
-            progress = 0.65f,
-            progressColorHex = 0xFFEAB308,
-            leftLabel = "Low Volatility",
-            centerLabel = "Moderate",
-            rightLabel = "High Variance",
-            rightLabelIsRed = false,
-        ),
-        BiomarkerAnalysis(
-            id = "sympathetic_tone",
-            title = "Sympathovagal Ratio",
-            subtitle = "LF/HF HRV Balance",
-            badgeText = "Optimal",
-            badgeBg = StableGreenBg,
-            badgeColor = StableGreen,
-            description = "Frequency-domain heart rate variability index quantifying sympathetic versus parasympathetic autonomic balance.",
-            clinicalInsight = "Low-frequency to high-frequency ratio (LF/HF) derived from 64Hz photoplethysmography intervals. An optimal ratio (1.0 - 2.0) reflects restorative parasympathetic tone.",
-            referenceRange = "1.0 - 2.0 (Resting)",
-            confidenceScore = "96.2%",
-            recommendations = listOf(
-                "Deep diaphragmatic breathing exercises promote high vagal tone.",
-                "Resting intervals throughout intense cognitive work maintain balance."
-            ),
-            progress = 0.28f,
-            progressColorHex = 0xFF10B981,
-            leftLabel = "Parasympathetic",
-            centerLabel = "Balanced",
-            rightLabel = "Sympathetic Overdrive",
-            rightLabelIsRed = true,
-        )
+        initialAnalysis("hr_eda"), initialAnalysis("glucose_variability"), initialAnalysis("hrv")
     ),
     val pipelineStatus: DatabricksPipelineStatus = DatabricksPipelineStatus(),
     val userProfile: UserProfile = UserProfile(),
@@ -206,4 +141,58 @@ data class DashboardUiState(
     val replay: Patient16ReplayState = Patient16ReplayState(),
 ) {
     val isStreamingActive: Boolean get() = replay.isAdvancing
+}
+
+fun initialAnalysis(metric: String): BiomarkerAnalysis {
+    val title = when (metric) {
+        "hr_eda" -> "Heart & Skin Patterns"
+        "glucose_variability" -> "Glucose Variability"
+        "hrv" -> "Heart Rate Variability"
+        else -> "Prediabetes Risk Estimate"
+    }
+    val technical = when (metric) {
+        "hr_eda" -> "HR–EDA / Cross-Fuzzy Entropy (X-FuzzEn)"
+        "glucose_variability" -> "Glycemic Volatility / Postprandial Slope"
+        "hrv" -> "HRV / LF/HF analysis"
+        else -> "Databricks prediction workflow"
+    }
+    return BiomarkerAnalysis(id = metric, title = title, subtitle = technical, badgeText = "Collecting data",
+        badgeBg = Color(0xFFF3F4F6), badgeColor = Color(0xFF6B7280),
+        description = "Waiting for the first completed analysis window.",
+        clinicalInsight = when (metric) {
+            "hr_eda" -> "Temporal HR–EDA relationships require synchronized source readings and a validated calculation workflow."
+            "glucose_variability" -> "Glucose variability requires an adequate glucose window and a model-defined reference range."
+            "hrv" -> "HRV analysis requires IBI sequences and model-defined ranges. LF/HF alone does not establish sympathovagal balance or restorative tone."
+            else -> "Prediabetes risk requires a verified prediction workflow with the required sensor coverage and relevant context."
+        }, referenceRange = "Unavailable", progress = 0f,
+        leftLabel = when (metric) { "hr_eda" -> "Typical pattern"; "hrv" -> "Below range"; else -> "Low" },
+        centerLabel = when (metric) { "glucose_variability" -> "Moderate"; "hrv" -> "Validated range"; else -> "" },
+        rightLabel = when (metric) { "hr_eda" -> "Elevated risk"; "hrv" -> "Above range"; else -> "High" })
+}
+
+/** One category drives severity, badge, color and filter membership. The position is model-configured. */
+fun BiomarkerAnalysis.withResult(next: MetricResult): BiomarkerAnalysis {
+    if (!next.available) return pendingAnalysis(next.reason ?: "Analysis is unavailable.", unavailable = true)
+    val category = requireNotNull(next.category)
+    val numeric = String.format(Locale.US, "%.3g %s", next.value, next.unit)
+    val text = if (id == "glucose_variability" && next.supportsPostmealSpikes) {
+        "$numeric • ${category.label}. The model indicates greater likelihood of spikes after meals."
+    } else "$numeric • ${category.label}."
+    return copy(result = next, badgeText = category.badge, badgeBg = Color(category.backgroundHex),
+        badgeColor = Color(category.colorHex), severity = category.label,
+        description = text, clinicalInsight = next.explanation ?: initialAnalysis(id).clinicalInsight,
+        referenceRange = requireNotNull(next.referenceRange),
+        confidenceScore = next.confidence?.let { String.format(Locale.US, "%.1f%%", it * 100) } ?: "—",
+        riskProbabilityText = next.riskProbability?.let { String.format(Locale.US, "%.1f%%", it * 100) } ?: "—",
+        progress = requireNotNull(next.barPosition), progressColorHex = category.colorHex,
+        restorativeStart = next.restorativeStart, restorativeEnd = next.restorativeEnd,
+        modelVersion = next.modelVersion, thresholdVersion = next.thresholdVersion, windowId = next.windowId)
+}
+
+fun BiomarkerAnalysis.pendingAnalysis(message: String, unavailable: Boolean = false): BiomarkerAnalysis {
+    val retained = result?.available == true
+    return copy(badgeText = if (retained) "Outdated" else if (unavailable) "Unavailable" else "Collecting data",
+        badgeBg = Color(0xFFF3F4F6), badgeColor = Color(0xFF6B7280), progressColorHex = 0xFF9CA3AF,
+        progress = if (retained) progress else 0f,
+        description = if (retained) "$message Previous result: ${severity ?: "Unavailable"}." else message)
 }

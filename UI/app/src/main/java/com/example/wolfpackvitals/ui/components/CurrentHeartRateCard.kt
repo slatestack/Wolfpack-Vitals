@@ -29,7 +29,7 @@ fun CurrentHeartRateCard(
     avgBpm: Int,
     restingBpm: Int,
     isStreaming: Boolean = true,
-    statusText: String = if (isStreaming) "Patient 16" else "Replay idle",
+    statusText: String = if (isStreaming) "Collecting" else "Collecting data",
     onLogClick: () -> Unit = {}
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "heartBeat")
@@ -74,7 +74,7 @@ fun CurrentHeartRateCard(
                             .scale(if (isStreaming) scale else 1.0f)
                     )
                     Text(
-                        text = "Average HR (over an hour)",
+                        text = "Average heart rate",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF6B7280)
@@ -113,7 +113,7 @@ fun CurrentHeartRateCard(
             ) {
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
-                        text = "$avgBpm",
+                        text = if (avgBpm > 0) "$avgBpm" else "—",
                         fontSize = 38.sp,
                         fontWeight = FontWeight.Bold,
                         color = NCStateRed

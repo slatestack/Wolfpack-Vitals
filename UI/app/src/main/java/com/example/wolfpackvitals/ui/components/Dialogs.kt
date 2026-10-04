@@ -264,20 +264,14 @@ fun BiomarkerDetailDialog(
                 // Progress Indicator
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Risk & Variance Trajectory", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = NCStateDarkGray)
-                    LinearProgressIndicator(
-                        progress = { biomarker.progress },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(10.dp)
-                            .clip(RoundedCornerShape(5.dp)),
-                        color = Color(biomarker.progressColorHex),
-                        trackColor = BackgroundGray
-                    )
+                    Text(biomarker.description, fontSize = 12.sp, color = Color(0xFF4B5563), lineHeight = 18.sp)
+                    AnalysisBar(biomarker)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(biomarker.leftLabel, fontSize = 11.sp, color = Color.Gray)
+                        if (biomarker.centerLabel.isNotEmpty()) Text(biomarker.centerLabel, fontSize = 11.sp, color = Color.Gray)
                         Text(biomarker.rightLabel, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (biomarker.rightLabelIsRed) NCStateRed else Color.Gray)
                     }
                 }
@@ -299,11 +293,16 @@ fun BiomarkerDetailDialog(
                             Text(biomarker.referenceRange.ifEmpty { "Normative Range" }, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = NCStateDarkGray)
                         }
                         Column(horizontalAlignment = Alignment.End) {
-                            Text("ML Model Certainty", fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.SemiBold)
+                            Text("Model Confidence", fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.SemiBold)
                             Text(biomarker.confidenceScore, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = StableGreen)
                         }
                     }
                 }
+
+                biomarker.modelVersion?.let { MetricRow("Model version", it) }
+                biomarker.thresholdVersion?.let { MetricRow("Threshold version", it) }
+                biomarker.windowId?.let { Text("Source window: $it", fontSize = 11.sp, color = Color.Gray) }
+                if (biomarker.id == "prediabetes_risk") MetricRow("Risk probability", biomarker.riskProbabilityText)
 
                 // Clinical Insight
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -359,6 +358,7 @@ fun BiomarkerDetailDialog(
 fun ExpandedChartDialog(
     heartRate: HeartRateReading,
     onRangeSelected: (String) -> Unit,
+    onToggleStyle: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -418,14 +418,18 @@ fun ExpandedChartDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    StatBox(label = "Average", value = "${heartRate.avgBpm} bpm", color = NCStateRed, modifier = Modifier.weight(1f))
+                    StatBox(label = "Average", value = if (heartRate.hourlyHistory.isEmpty()) "—" else "${heartRate.avgBpm} bpm", color = NCStateRed, modifier = Modifier.weight(1f))
                     StatBox(label = "Resting", value = "${heartRate.restingBpm} bpm", color = NCStateDarkGray, modifier = Modifier.weight(1f))
-                    StatBox(label = "Min / Max", value = "${heartRate.minBpm} - ${heartRate.maxBpm}", color = Color(0xFF2563EB), modifier = Modifier.weight(1f))
+                    StatBox(label = "Min / Max", value = if (heartRate.hourlyHistory.isEmpty()) "—" else "${heartRate.minBpm} - ${heartRate.maxBpm}", color = Color(0xFF2563EB), modifier = Modifier.weight(1f))
                 }
 
+                TextButton(onClick = onToggleStyle) {
+                    Text(if (heartRate.isLineMode) "Bar chart" else "Line chart")
+                }
                 // Interactive High-Res Telemetry Chart
                 HeartRateTelemetryGraph(
                     history = heartRate.hourlyHistory,
+                    isLineMode = heartRate.isLineMode,
                     restingBpm = heartRate.restingBpm,
                     selectedRange = heartRate.selectedRange,
                     lastUpdatedHour = heartRate.lastUpdatedHour,
@@ -437,10 +441,10 @@ fun ExpandedChartDialog(
                 // Cardio Zones Breakdown
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Physiological Heart Rate Zones", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = NCStateDarkGray)
-                    ZoneRow(name = "Resting (< 60 bpm)", percentage = "18%", color = Color(0xFF60A5FA))
-                    ZoneRow(name = "Fat Burn (60 - 99 bpm)", percentage = "62%", color = Color(0xFF34D399))
-                    ZoneRow(name = "Cardio Aerobic (100 - 139 bpm)", percentage = "16%", color = Color(0xFFFBBF24))
-                    ZoneRow(name = "Peak Sympathetic (> 140 bpm)", percentage = "4%", color = NCStateRed)
+                    ZoneRow(name = "Resting (< 60 bpm)", percentage = zonePercentage(heartRate, 0, 59), color = Color(0xFF60A5FA))
+                    ZoneRow(name = "Fat Burn (60 - 99 bpm)", percentage = zonePercentage(heartRate, 60, 99), color = Color(0xFF34D399))
+                    ZoneRow(name = "Cardio Aerobic (100 - 139 bpm)", percentage = zonePercentage(heartRate, 100, 139), color = Color(0xFFFBBF24))
+                    ZoneRow(name = "Peak Rate (≥ 140 bpm)", percentage = zonePercentage(heartRate, 140, Int.MAX_VALUE), color = NCStateRed)
                 }
 
                 HorizontalDivider(color = Color(0xFFE5E7EB))
@@ -611,7 +615,7 @@ fun LogVitalDialog(
                     bpmValue < 60 -> "Resting Baseline"
                     bpmValue < 100 -> "Normal / Fat Burn"
                     bpmValue < 140 -> "Cardio Aerobic"
-                    else -> "Peak Sympathetic"
+                    else -> "Peak Heart Rate"
                 }
                 val zoneColor = when {
                     bpmValue < 60 -> Color(0xFF3B82F6)
@@ -752,7 +756,7 @@ fun DatabricksModelInsightsDialog(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = NCStateRed)
-                        Text("LightGBM Model Architecture", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = NCStateDarkGray)
+                        Text("Prediction Model Details", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = NCStateDarkGray)
                     }
                     IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
                         Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.Gray)
@@ -762,7 +766,7 @@ fun DatabricksModelInsightsDialog(
                 HorizontalDivider(color = Color(0xFFE5E7EB))
 
                 Text(
-                    "Real-time edge telemetry processed across Apache Spark worker clusters for physiological anomaly inference.",
+                    pipelineStatus.analysis.description,
                     fontSize = 12.sp,
                     color = Color.Gray,
                     lineHeight = 16.sp
@@ -775,12 +779,11 @@ fun DatabricksModelInsightsDialog(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        MetricRow("Algorithm", "LightGBM Ensembles + X-FuzzEn")
-                        MetricRow("ROC-AUC Score", pipelineStatus.modelAccuracy)
-                        MetricRow("Max Tree Depth", "${pipelineStatus.treeDepth} levels")
-                        MetricRow("Inference Latency", "${pipelineStatus.inferenceLatencyMs} ms")
-                        MetricRow("Sampling Frequency", "${pipelineStatus.sampleRateHz} Hz (ECG/EDA)")
-                        MetricRow("Active Spark Workers", "${pipelineStatus.activeWorkers} Nodes")
+                        MetricRow("Model version", pipelineStatus.analysis.modelVersion ?: "Unavailable")
+                        MetricRow("Threshold version", pipelineStatus.analysis.thresholdVersion ?: "Unavailable")
+                        MetricRow("Reference range", pipelineStatus.analysis.referenceRange)
+                        MetricRow("Model confidence", pipelineStatus.analysis.confidenceScore)
+                        MetricRow("Risk probability", pipelineStatus.analysis.riskProbabilityText)
                         MetricRow("Cluster State", pipelineStatus.clusterStatus)
                         MetricRow("Databricks Workspace", pipelineStatus.workspaceUrl)
                     }
@@ -1200,11 +1203,6 @@ fun DatabricksConnectionDialog(
     pipelineStatus: DatabricksPipelineStatus,
     onDismiss: () -> Unit
 ) {
-    val context = LocalContext.current
-    var isTesting by remember { mutableStateOf(false) }
-    var testResult by remember { mutableStateOf<String?>(null) }
-    val coroutineScope = rememberCoroutineScope()
-
     Dialog(onDismissRequest = onDismiss) {
         Card(
             shape = RoundedCornerShape(20.dp),
@@ -1243,27 +1241,10 @@ fun DatabricksConnectionDialog(
                 ) {
                     Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         MetricRow("Workspace URL", pipelineStatus.workspaceUrl)
-                        MetricRow("Cluster Runtime", "Apache Spark 3.5 ML GPU")
-                        MetricRow("Inference Protocol", "gRPC 64Hz Stream Ingestion")
+                        MetricRow("Model version", pipelineStatus.analysis.modelVersion ?: "Unavailable")
+                        MetricRow("Inference Protocol", "Timestamped HTTPS analysis")
                         MetricRow("Cluster Status", pipelineStatus.clusterStatus)
-                        MetricRow("Token Health", "Valid (Active Session)")
-                    }
-                }
-
-                if (testResult != null) {
-                    Surface(
-                        color = Color(0xFFDCFCE7),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = StableGreen, modifier = Modifier.size(20.dp))
-                            Text(testResult!!, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF166534))
-                        }
+                        MetricRow("Analysis status", pipelineStatus.analysis.badgeText)
                     }
                 }
 
@@ -1271,22 +1252,6 @@ fun DatabricksConnectionDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    OutlinedButton(
-                        onClick = {
-                            isTesting = true
-                            testResult = null
-                            coroutineScope.launch {
-                                delay(800)
-                                isTesting = false
-                                testResult = "Cluster responding • Ping: 12ms (Optimal)"
-                            }
-                        },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(10.dp),
-                        enabled = !isTesting
-                    ) {
-                        Text(if (isTesting) "Pinging..." else "Test Connection", fontSize = 12.sp)
-                    }
                     Button(
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f),
@@ -1529,4 +1494,9 @@ fun AboutAppDialog(
             }
         }
     }
+}
+
+private fun zonePercentage(reading: HeartRateReading, min: Int, max: Int): String {
+    val history = reading.hourlyHistory
+    return if (history.isEmpty()) "—" else "${history.count { it.second in min..max } * 100 / history.size}%"
 }

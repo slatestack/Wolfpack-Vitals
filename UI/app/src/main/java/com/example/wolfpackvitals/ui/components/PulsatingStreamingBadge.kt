@@ -23,7 +23,7 @@ import com.example.wolfpackvitals.ui.theme.NCStateDarkRed
 fun PulsatingStreamingBadge(
     modifier: Modifier = Modifier,
     isStreaming: Boolean = false,
-    text: String = if (isStreaming) "Patient 16 • Hour Avg" else "Start Patient 16 hour replay",
+    text: String = if (isStreaming) "Pause" else "Start",
     onClick: () -> Unit = {}
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")

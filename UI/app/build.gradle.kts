@@ -17,7 +17,7 @@ abstract class PreparePatient16Assets : DefaultTask() {
     @TaskAction fun prepare() {
         fileSystem.sync {
             from(dataDirectory) {
-                include("HR_016.csv", "Dexcom_016.csv", "IBI_016.csv", "ACC_016.csv")
+                include("HR_016.csv", "Dexcom_016.csv", "IBI_016.csv", "ACC_016.csv", "EDA_016.csv", "TEMP_016.csv")
             }
             into(outputDirectory.dir("patient-16-data"))
         }
@@ -78,6 +78,7 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     testImplementation(libs.junit)
+    testImplementation("org.json:json:20240303")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")

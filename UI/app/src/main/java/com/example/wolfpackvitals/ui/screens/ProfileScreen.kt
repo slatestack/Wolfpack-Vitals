@@ -182,12 +182,12 @@ fun ProfileScreen(
                     title = "Databricks Connection",
                     badge = {
                         Surface(
-                            color = Color(0xFFDCFCE7),
+                            color = if (uiState.userProfile.databricksConnected) Color(0xFFDCFCE7) else Color(0xFFF3F4F6),
                             shape = RoundedCornerShape(6.dp)
                         ) {
                             Text(
-                                text = "Connected",
-                                color = Color(0xFF16A34A),
+                                text = if (uiState.userProfile.databricksConnected) "Results available" else "Unverified",
+                                color = if (uiState.userProfile.databricksConnected) Color(0xFF16A34A) else Color(0xFF6B7280),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1,

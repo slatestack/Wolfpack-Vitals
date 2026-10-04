@@ -11,6 +11,11 @@ class Patient16DataSourceTest {
         assertEquals(488, data.glucose.size)
         assertEquals(499, data.interbeatInterval.size)
         assertEquals(499, data.acceleration.size)
+        assertEquals(499, data.eda.size)
+        assertEquals(0.0, data.eda.first(), 0.0)
+        assertEquals("2020-07-16 09:29:03.000", data.sourceSeries.getValue("eda").readings.first().timestamp)
+        assertEquals("uS", data.sourceSeries.getValue("eda").unit)
+        assertTrue(data.sourceSeries.getValue("temp").readings.isEmpty())
         assertEquals(listOf(71.0, 84.0, 81.67), data.heartbeat.take(3))
         assertEquals(listOf(138.0, 134.0, 130.0), data.glucose.take(3))
         assertEquals(0.734409, data.interbeatInterval.first(), 0.0)
@@ -31,6 +36,19 @@ class Patient16DataSourceTest {
         assertEquals(listOf(71.0), data.heartbeat)
         assertEquals(listOf(138.0, 134.0), data.glucose)
         assertEquals(listOf(Acceleration(-1.0, 2.0, 3.0)), data.acceleration)
+    }
+
+    @Test fun sourceWindowsNeverLoopShortRecordingsOrInventTemperature() {
+        val data = repositoryPatient16Data()
+        val first = data.analysisWindow(REPLAY_SEND_INTERVAL_MS)
+        val last = data.analysisWindow(REPLAY_HOUR_MS)
+        assertEquals(300, first.sensors.getValue("hr").readings.size)
+        assertEquals(499, last.sensors.getValue("hr").readings.size)
+        assertEquals(first.sensors.getValue("eda"), last.sensors.getValue("eda"))
+        assertEquals(first.sensors.getValue("acc"), last.sensors.getValue("acc"))
+        assertTrue(last.sensors.getValue("temp").readings.isEmpty())
+        assertEquals("source_local_unspecified", last.timeBasis)
+        assertTrue(last.sensors.values.all { series -> series.readings.distinctBy { it.timestamp }.size == series.readings.size })
     }
 
     @Test(expected = IllegalArgumentException::class)

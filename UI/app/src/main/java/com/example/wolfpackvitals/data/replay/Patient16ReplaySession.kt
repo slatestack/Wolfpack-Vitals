@@ -14,7 +14,7 @@ data class HourAverages(
     val sampleCountPerModality: Int
 )
 
-data class ReplaySnapshot(val activeElapsedMs: Long, val averages: HourAverages)
+data class ReplaySnapshot(val activeElapsedMs: Long, val averages: HourAverages, val intervalHeartbeat: Double, val sourceWindow: AnalysisWindow? = null)
 
 data class Patient16ReplayState(
     val phase: ReplayPhase = ReplayPhase.INACTIVE,
@@ -34,14 +34,10 @@ data class Patient16ReplayState(
         REPLAY_SEND_INTERVAL_MS - activeElapsedMs % REPLAY_SEND_INTERVAL_MS
     val isAdvancing: Boolean get() = phase == ReplayPhase.RUNNING && isApplicationActive && !isLoading
     val badgeLabel: String get() = when (phase) {
-        ReplayPhase.INACTIVE -> "Start Patient 16 hour replay"
-        ReplayPhase.RUNNING -> when {
-            isLoading -> "Loading Patient 16"
-            !isApplicationActive -> "Patient 16 replay paused"
-            else -> "Patient 16 • Hour Avg"
-        }
-        ReplayPhase.PAUSED -> "Patient 16 replay paused"
-        ReplayPhase.COMPLETED -> "Patient 16 hour complete"
+        ReplayPhase.INACTIVE -> "Start"
+        ReplayPhase.RUNNING -> if (isLoading) "Loading" else "Pause"
+        ReplayPhase.PAUSED -> "Resume"
+        ReplayPhase.COMPLETED -> "Start again"
     }
 }
 
@@ -50,6 +46,8 @@ class Patient16ReplaySession(private val data: Patient16Data) {
     var activeElapsedMs = 0L
         private set
     private val accumulator = HourAccumulator()
+    private var intervalHrSum = 0.0
+    private var intervalHrCount = 0
     val averages: HourAverages? get() = accumulator.averages
 
     /** Consume one existing valid row per modality per active second, starting at row zero.
@@ -62,6 +60,8 @@ class Patient16ReplaySession(private val data: Patient16Data) {
         val snapshots = mutableListOf<ReplaySnapshot>()
         while ((accumulator.sampleCount + 1) * REPLAY_SAMPLE_INTERVAL_MS <= target) {
             val cursor = accumulator.sampleCount
+            intervalHrSum += data.heartbeat[cursor % data.heartbeat.size]
+            intervalHrCount++
             accumulator.add(
                 data.heartbeat[cursor % data.heartbeat.size],
                 data.glucose[cursor % data.glucose.size],
@@ -70,7 +70,10 @@ class Patient16ReplaySession(private val data: Patient16Data) {
             )
             val sampleTime = accumulator.sampleCount * REPLAY_SAMPLE_INTERVAL_MS
             if (sampleTime % REPLAY_SEND_INTERVAL_MS == 0L) {
-                snapshots += ReplaySnapshot(sampleTime, requireNotNull(averages))
+                snapshots += ReplaySnapshot(sampleTime, requireNotNull(averages), intervalHrSum / intervalHrCount,
+                    if (data.sourceSeries["hr"]?.readings?.isNotEmpty() == true) data.analysisWindow(sampleTime) else null)
+                intervalHrSum = 0.0
+                intervalHrCount = 0
             }
         }
         activeElapsedMs = target

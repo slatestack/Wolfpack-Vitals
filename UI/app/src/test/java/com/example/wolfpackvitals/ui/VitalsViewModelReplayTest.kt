@@ -1,6 +1,7 @@
 package com.example.wolfpackvitals.ui
 
 import androidx.lifecycle.ViewModelStore
+import com.example.wolfpackvitals.data.network.*
 import com.example.wolfpackvitals.data.network.PredictionClient
 import com.example.wolfpackvitals.data.network.PredictionPayload
 import com.example.wolfpackvitals.data.network.PredictionRequest
@@ -44,16 +45,21 @@ class VitalsViewModelReplayTest {
         val vm = viewModel()
         runCurrent()
         assertTrue(client.payloads.isEmpty())
+        assertTrue(vm.uiState.value.heartRate.hourlyHistory.isEmpty())
         advanceTimeBy(REPLAY_SEND_INTERVAL_MS - 1)
         runCurrent()
         assertTrue(client.payloads.isEmpty())
         advanceTimeBy(1)
         runCurrent()
         assertEquals(1, client.payloads.size)
+        assertEquals(1, vm.uiState.value.heartRate.hourlyHistory.size)
         advanceTimeBy(REPLAY_HOUR_MS - REPLAY_SEND_INTERVAL_MS)
         runCurrent()
         val state = vm.uiState.value.replay
         assertEquals(ReplayPhase.COMPLETED, state.phase)
+        assertEquals(12, vm.uiState.value.heartRate.hourlyHistory.size)
+        assertEquals("0–5m", vm.uiState.value.heartRate.hourlyHistory.first().first)
+        assertEquals("55–60m", vm.uiState.value.heartRate.hourlyHistory.last().first)
         assertEquals(12, state.transmissionAttempts)
         assertEquals(12, state.transmissionsCompleted)
         assertEquals(12, state.successfulTransmissions)
@@ -67,6 +73,7 @@ class VitalsViewModelReplayTest {
         runCurrent()
         assertEquals(0, vm.uiState.value.replay.activeElapsedMs)
         assertNull(vm.uiState.value.replay.averages)
+        assertTrue(vm.uiState.value.heartRate.hourlyHistory.isEmpty())
         advanceTimeBy(1000)
         runCurrent()
         assertEquals(71.0, vm.uiState.value.replay.averages!!.heartbeat, 0.0)
@@ -111,6 +118,8 @@ class VitalsViewModelReplayTest {
         advanceTimeBy(REPLAY_SEND_INTERVAL_MS)
         runCurrent()
         assertNotNull(vm.uiState.value.replay.lastApiError)
+        assertEquals(1, vm.uiState.value.heartRate.hourlyHistory.size)
+        assertTrue(vm.uiState.value.biomarkers.all { it.badgeText == "Unavailable" })
         assertEquals(ReplayPhase.RUNNING, vm.uiState.value.replay.phase)
         advanceTimeBy(REPLAY_SEND_INTERVAL_MS)
         runCurrent()
@@ -163,17 +172,133 @@ class VitalsViewModelReplayTest {
         assertEquals(ReplayPhase.COMPLETED, vm.uiState.value.replay.phase)
     }
 
+    @Test fun rangeChangesUseOnlyCollectedIntervalsAndBothStylesShareState() = runTest(dispatcher) {
+        val vm = viewModel()
+        runCurrent()
+        listOf("1H", "6H", "24H", "7D").forEach { range ->
+            vm.setTimeRange(range)
+            assertTrue(vm.uiState.value.heartRate.hourlyHistory.isEmpty())
+        }
+        advanceTimeBy(10 * 60000L)
+        runCurrent()
+        val collected = vm.uiState.value.heartRate.hourlyHistory
+        assertEquals(2, collected.size)
+        listOf("1H", "6H", "24H", "7D").forEach { range ->
+            vm.setTimeRange(range)
+            assertEquals(collected, vm.uiState.value.heartRate.hourlyHistory)
+        }
+        vm.toggleChartStyle()
+        assertFalse(vm.uiState.value.heartRate.isLineMode)
+        vm.toggleChartStyle()
+        assertTrue(vm.uiState.value.heartRate.isLineMode)
+    }
+
+    @Test fun intervalMeansDoNotUseCumulativeHourMeans() = runTest(dispatcher) {
+        val vm = viewModel()
+        runCurrent()
+        advanceTimeBy(10 * 60000L)
+        runCurrent()
+        val snapshots = Patient16ReplaySession(repositoryPatient16Data()).advanceBy(10 * 60000L)
+        assertEquals(snapshots.map { kotlin.math.round(it.intervalHeartbeat).toInt() },
+            vm.uiState.value.heartRate.hourlyHistory.map { it.second })
+        assertNotEquals(snapshots[1].averages.heartbeat, snapshots[1].intervalHeartbeat, 0.01)
+    }
+
+    private fun valid(category: RiskCategory = RiskCategory.MODERATE) = MetricResult(
+        true, value = 17.0, unit = "test", category = category, barPosition = 0.6f,
+        referenceRange = "Model test range", thresholdVersion = "test-v1", confidence = null,
+        modelVersion = "test-model", windowId = "test-window")
+
+    @Test fun newestResponseWinsPartialResultsUpdateAndPreviousResultBecomesOutdated() = runTest(dispatcher) {
+        client.autoComplete = false
+        val vm = viewModel()
+        runCurrent()
+        advanceTimeBy(10 * 60000L)
+        runCurrent()
+        client.complete(1, mapOf("glucose_variability" to valid()))
+        runCurrent()
+        val glucose = vm.uiState.value.biomarkers.first { it.id == "glucose_variability" }
+        assertEquals("Monitoring", glucose.badgeText)
+        assertEquals("Moderate", glucose.severity)
+        assertEquals("—", glucose.confidenceScore)
+        assertEquals("Unavailable", vm.uiState.value.biomarkers.first().badgeText)
+        client.complete(0, mapOf("glucose_variability" to valid(RiskCategory.LOW)))
+        runCurrent()
+        assertEquals(glucose, vm.uiState.value.biomarkers.first { it.id == "glucose_variability" })
+        advanceTimeBy(REPLAY_SEND_INTERVAL_MS)
+        runCurrent()
+        assertEquals("Outdated", vm.uiState.value.biomarkers.first { it.id == "glucose_variability" }.badgeText)
+        client.callbacks[2](Result.failure(IOException("Sensitive raw error")))
+        runCurrent()
+        val old = vm.uiState.value.biomarkers.first { it.id == "glucose_variability" }
+        assertEquals("Outdated", old.badgeText)
+        assertEquals(glucose.progress, old.progress)
+        assertFalse(old.description.contains("Sensitive"))
+    }
+
+    @Test fun restartAndCancelledCallbacksCannotOverwriteTheNewSession() = runTest(dispatcher) {
+        client.autoComplete = false
+        val vm = viewModel()
+        runCurrent()
+        advanceTimeBy(REPLAY_HOUR_MS)
+        runCurrent()
+        vm.togglePatient16Replay()
+        runCurrent()
+        client.complete(11, mapOf("glucose_variability" to valid()))
+        runCurrent()
+        assertTrue(vm.uiState.value.heartRate.hourlyHistory.isEmpty())
+        assertTrue(vm.uiState.value.biomarkers.all { it.badgeText == "Collecting data" })
+        advanceTimeBy(REPLAY_SEND_INTERVAL_MS)
+        runCurrent()
+        vm.togglePatient16Replay()
+        client.complete(12, mapOf("glucose_variability" to valid()))
+        runCurrent()
+        assertTrue(vm.uiState.value.biomarkers.none { it.badgeText == "Monitoring" })
+    }
+
+    @Test fun syncUsesTheLatestReplayWindowAndSameIntervalRefreshRejectsOlderResponses() = runTest(dispatcher) {
+        client.autoComplete = false
+        val vm = viewModel()
+        runCurrent()
+        vm.syncPipeline()
+        assertTrue(client.requests.isEmpty())
+        advanceTimeBy(REPLAY_SEND_INTERVAL_MS)
+        runCurrent()
+        client.complete(0)
+        runCurrent()
+        vm.syncPipeline()
+        runCurrent()
+        assertEquals(client.requests[0], client.requests[1])
+        client.complete(1, mapOf("glucose_variability" to valid()))
+        runCurrent()
+        client.complete(0, mapOf("glucose_variability" to valid(RiskCategory.LOW)))
+        runCurrent()
+        assertEquals("Moderate", vm.uiState.value.biomarkers.first { it.id == "glucose_variability" }.severity)
+    }
+
     private class RecordingPredictionClient : PredictionClient {
         val payloads = mutableListOf<PredictionPayload>()
+        val requests = mutableListOf<DashboardPayload>()
+        val callbacks = mutableListOf<(Result<DashboardResponse>) -> Unit>()
         var failFirst = false
         var autoComplete = true
         var cancellations = 0
-        override fun send(payload: PredictionPayload, onResult: (Result<String>) -> Unit): PredictionRequest {
-            payloads += payload
-            if (autoComplete) onResult(
-                if (failFirst && payloads.size == 1) Result.failure(IOException("Test network failure"))
-                else Result.success("prediction")
-            )
+        override fun send(payload: PredictionPayload, onResult: (Result<String>) -> Unit): PredictionRequest =
+            error("Replay must use the structured POST contract")
+
+        fun complete(index: Int, results: Map<String, MetricResult> = emptyMap()) {
+            val request = requests[index]
+            callbacks[index](Result.success(DashboardResponse(request.patientId, request.sessionId, request.interval,
+                request.windowId, DASHBOARD_METRICS.associateWith { results[it] ?: MetricResult.unavailable("Test unsupported model") })))
+        }
+        override fun analyze(payload: DashboardPayload, onResult: (Result<DashboardResponse>) -> Unit): PredictionRequest {
+            requests += payload
+            payloads += PredictionPayload.from(payload.snapshot.averages)
+            callbacks += onResult
+            if (autoComplete) {
+                if (failFirst && payloads.size == 1) onResult(Result.failure(IOException("Test network failure")))
+                else complete(requests.lastIndex)
+            }
             return PredictionRequest {
                 cancellations++
                 if (!autoComplete) onResult(Result.failure(IOException("Request cancelled during pause")))
