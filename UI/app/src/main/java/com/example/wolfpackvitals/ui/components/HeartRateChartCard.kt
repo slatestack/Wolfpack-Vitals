@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.wolfpackvitals.ui.theme.CardBackground
 import com.example.wolfpackvitals.ui.theme.NCStateDarkGray
+import com.example.wolfpackvitals.ui.theme.NCStateRed
 import com.patrykandpatrick.vico.compose.axis.horizontal.rememberBottomAxis
 import com.patrykandpatrick.vico.compose.axis.vertical.rememberStartAxis
 import com.patrykandpatrick.vico.compose.chart.Chart
@@ -25,7 +26,12 @@ import com.patrykandpatrick.vico.core.axis.formatter.AxisValueFormatter
 import com.patrykandpatrick.vico.core.entry.entryModelOf
 
 @Composable
-fun HeartRateChartCard(history: List<Pair<String, Int>>) {
+fun HeartRateChartCard(
+    history: List<Pair<String, Int>>,
+    selectedRange: String = "24H",
+    onRangeSelected: (String) -> Unit = {},
+    onExpandClick: () -> Unit = {}
+) {
     val chartModel = entryModelOf(*history.map { it.second }.toTypedArray())
     val valueFormatter = AxisValueFormatter<AxisPosition.Horizontal.Bottom> { value, _ ->
         val raw = history.getOrNull(value.toInt())?.first ?: ""
@@ -47,26 +53,48 @@ fun HeartRateChartCard(history: List<Pair<String, Int>>) {
             ) {
                 Column {
                     Text(
-                        text = "Heart Rate History",
+                        text = "Heart Rate Telemetry",
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
                         color = NCStateDarkGray
                     )
                     Text(
-                        text = "Hourly 24-hour stream • Slide horizontally",
+                        text = "Real-time wearable sensor stream • $selectedRange view",
                         fontSize = 11.sp,
                         color = Color(0xFF9CA3AF)
                     )
                 }
-                Icon(
-                    imageVector = Icons.Default.OpenInFull,
-                    contentDescription = "Expand Chart",
-                    tint = Color(0xFF9CA3AF),
-                    modifier = Modifier.size(18.dp)
-                )
+                IconButton(onClick = onExpandClick) {
+                    Icon(
+                        imageVector = Icons.Default.OpenInFull,
+                        contentDescription = "Expand Chart",
+                        tint = NCStateDarkGray,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Time Range Filter Chips
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                listOf("1H", "6H", "24H", "7D").forEach { range ->
+                    FilterChip(
+                        selected = selectedRange == range,
+                        onClick = { onRangeSelected(range) },
+                        label = { Text(range, fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = NCStateRed,
+                            selectedLabelColor = Color.White
+                        )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
 
             // Horizontally Scrollable / Slidable Chart
             Row(

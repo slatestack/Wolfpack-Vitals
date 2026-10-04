@@ -1,6 +1,7 @@
 package com.example.wolfpackvitals.ui.components
 
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -8,6 +9,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.*
@@ -26,7 +29,11 @@ import com.example.wolfpackvitals.ui.theme.NCStateDarkGray
 import com.example.wolfpackvitals.ui.theme.NCStateRed
 
 @Composable
-fun DatabricksMLCard(pipelineStatus: DatabricksPipelineStatus) {
+fun DatabricksMLCard(
+    pipelineStatus: DatabricksPipelineStatus,
+    onSyncClick: () -> Unit = {},
+    onInsightsClick: () -> Unit = {}
+) {
     val infiniteTransition = rememberInfiniteTransition(label = "rotation")
     val rotation by infiniteTransition.animateFloat(
         initialValue = 0f,
@@ -62,7 +69,7 @@ fun DatabricksMLCard(pipelineStatus: DatabricksPipelineStatus) {
                     imageVector = Icons.Default.Storage,
                     contentDescription = null,
                     tint = Color.White.copy(alpha = 0.06f),
-                    modifier = Modifier.size(100.dp)
+                    modifier = Modifier.size(110.dp)
                 )
             }
 
@@ -89,12 +96,16 @@ fun DatabricksMLCard(pipelineStatus: DatabricksPipelineStatus) {
                             fontSize = 17.sp
                         )
                     }
-                    if (pipelineStatus.isSyncing) {
-                        Icon(
-                            imageVector = Icons.Default.Sync,
-                            contentDescription = "Syncing",
-                            tint = Color.White,
-                            modifier = Modifier.rotate(rotation)
+
+                    Surface(
+                        color = Color.White.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text(
+                            text = pipelineStatus.lastSyncedText,
+                            color = Color(0xFFD1D5DB),
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
                 }
@@ -121,7 +132,7 @@ fun DatabricksMLCard(pipelineStatus: DatabricksPipelineStatus) {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "DATA STREAM",
+                                text = "STREAM INGESTION",
                                 color = Color(0xFF9CA3AF),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold
@@ -136,7 +147,7 @@ fun DatabricksMLCard(pipelineStatus: DatabricksPipelineStatus) {
                                         .background(Color(0xFF22C55E), CircleShape)
                                 )
                                 Text(
-                                    text = "Active Pipeline",
+                                    text = pipelineStatus.clusterStatus,
                                     color = Color(0xFF22C55E),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
@@ -178,6 +189,69 @@ fun DatabricksMLCard(pipelineStatus: DatabricksPipelineStatus) {
                                 )
                             }
                         }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Interactive Buttons Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(
+                        onClick = onSyncClick,
+                        enabled = !pipelineStatus.isSyncing,
+                        modifier = Modifier.weight(1.2f),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = NCStateRed,
+                            contentColor = Color.White,
+                            disabledContainerColor = NCStateRed.copy(alpha = 0.6f)
+                        ),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        if (pipelineStatus.isSyncing) {
+                            Icon(
+                                imageVector = Icons.Default.Sync,
+                                contentDescription = "Syncing",
+                                tint = Color.White,
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .rotate(rotation)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Running ML...", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = "Run",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Run Analysis", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = onInsightsClick,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Color.White
+                        ),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.3f)),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = "Insights",
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Architecture", fontSize = 12.sp)
                     }
                 }
             }

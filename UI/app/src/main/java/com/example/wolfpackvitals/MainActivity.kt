@@ -4,6 +4,8 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -11,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -19,15 +22,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
-import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.wolfpackvitals.data.DashboardUiState
 import com.example.wolfpackvitals.ui.VitalsViewModel
+import com.example.wolfpackvitals.ui.components.SettingsDialog
 import com.example.wolfpackvitals.ui.screens.DashboardScreen
 import com.example.wolfpackvitals.ui.screens.ProfileScreen
 import com.example.wolfpackvitals.ui.screens.ResearchScreen
@@ -43,12 +47,19 @@ class MainActivity : ComponentActivity() {
                 val context = LocalContext.current
                 val vitalsViewModel: VitalsViewModel = viewModel()
                 val uiState by vitalsViewModel.uiState.collectAsState()
+                var showSettingsDialog by remember { mutableStateOf(false) }
 
                 Scaffold(
                     topBar = {
                         TopHeaderBar(
+                            isSyncing = uiState.pipelineStatus.isSyncing,
+                            onSyncClick = {
+                                vitalsViewModel.syncPipeline {
+                                    Toast.makeText(context, "Stream synced with Databricks ML", Toast.LENGTH_SHORT).show()
+                                }
+                            },
                             onSettingsClick = {
-                                Toast.makeText(context, "Settings Clicked", Toast.LENGTH_SHORT).show()
+                                showSettingsDialog = true
                             }
                         )
                     },
@@ -60,14 +71,40 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.padding(innerPadding)
                     ) {
                         composable("dashboard") {
-                            DashboardScreen(uiState = uiState)
+                            DashboardScreen(
+                                uiState = uiState,
+                                viewModel = vitalsViewModel
+                            )
                         }
                         composable("research") {
-                            ResearchScreen()
+                            ResearchScreen(
+                                uiState = uiState,
+                                viewModel = vitalsViewModel
+                            )
                         }
                         composable("profile") {
-                            ProfileScreen(userProfile = uiState.userProfile)
+                            ProfileScreen(
+                                uiState = uiState,
+                                viewModel = vitalsViewModel
+                            )
                         }
+                    }
+
+                    if (showSettingsDialog) {
+                        SettingsDialog(
+                            settings = uiState.settings,
+                            onDismiss = { showSettingsDialog = false },
+                            onSaveSettings = { freq, live, caching, deid ->
+                                vitalsViewModel.updateSettings(
+                                    streamingFrequencyHz = freq,
+                                    offlineCaching = caching,
+                                    deidentified = deid
+                                )
+                            },
+                            onClearCache = {
+                                vitalsViewModel.clearLocalCache { }
+                            }
+                        )
                     }
                 }
             }
@@ -79,8 +116,21 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TopHeaderBar(
+    isSyncing: Boolean = false,
+    onSyncClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {}
 ) {
+    val infiniteTransition = rememberInfiniteTransition(label = "headerRotation")
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "headerRotation"
+    )
+
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = NCStateRed,
@@ -91,16 +141,26 @@ fun TopHeaderBar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Favorite,
-                    contentDescription = "Heart",
-                    tint = Color.White,
-                    modifier = Modifier.size(32.dp)
+                Image(
+                    painter = painterResource(id = R.drawable.ic_wolf_heart_white),
+                    contentDescription = "Wolfpack Vitals Logo",
+                    modifier = Modifier.size(30.dp)
                 )
-                Text("Wolfpack Vitals", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                Column {
+                    Text("Wolfpack Vitals", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.White)
+                    Text("The 4 Aces • NC State", fontSize = 10.sp, color = Color.White.copy(alpha = 0.85f))
+                }
             }
         },
         actions = {
+            IconButton(onClick = onSyncClick) {
+                Icon(
+                    imageVector = Icons.Default.Sync,
+                    contentDescription = "Sync Stream",
+                    tint = Color.White,
+                    modifier = if (isSyncing) Modifier.rotate(rotation) else Modifier
+                )
+            }
             IconButton(onClick = onSettingsClick) {
                 Icon(
                     imageVector = Icons.Default.Settings,
@@ -133,7 +193,7 @@ fun BottomNavigationBar(navController: NavHostController) {
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = NCStateRed,
                     selectedTextColor = NCStateRed,
-                    indicatorColor = Color.White
+                    indicatorColor = Color(0xFFFEE2E2)
                 ),
                 onClick = {
                     navController.navigate(item.route) {
@@ -166,7 +226,7 @@ fun DashboardScreenPreview() {
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = NCStateRed,
                             selectedTextColor = NCStateRed,
-                            indicatorColor = Color.White
+                            indicatorColor = Color(0xFFFEE2E2)
                         ),
                         onClick = {}
                     )
@@ -177,7 +237,7 @@ fun DashboardScreenPreview() {
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = NCStateRed,
                             selectedTextColor = NCStateRed,
-                            indicatorColor = Color.White
+                            indicatorColor = Color(0xFFFEE2E2)
                         ),
                         onClick = {}
                     )
@@ -188,7 +248,7 @@ fun DashboardScreenPreview() {
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = NCStateRed,
                             selectedTextColor = NCStateRed,
-                            indicatorColor = Color.White
+                            indicatorColor = Color(0xFFFEE2E2)
                         ),
                         onClick = {}
                     )
@@ -196,7 +256,10 @@ fun DashboardScreenPreview() {
             }
         ) { innerPadding ->
             Box(modifier = Modifier.padding(innerPadding)) {
-                DashboardScreen(uiState = DashboardUiState())
+                DashboardScreen(
+                    uiState = DashboardUiState(),
+                    viewModel = viewModel()
+                )
             }
         }
     }

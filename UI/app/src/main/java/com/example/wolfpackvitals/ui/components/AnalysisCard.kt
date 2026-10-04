@@ -1,9 +1,12 @@
 package com.example.wolfpackvitals.ui.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Water
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -21,12 +24,17 @@ import com.example.wolfpackvitals.ui.theme.NCStateDarkGray
 import com.example.wolfpackvitals.ui.theme.NCStateRed
 
 @Composable
-fun AnalysisCard(biomarker: BiomarkerAnalysis) {
+fun AnalysisCard(
+    biomarker: BiomarkerAnalysis,
+    onClick: () -> Unit = {}
+) {
     Card(
         colors = CardDefaults.cardColors(containerColor = CardBackground),
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(2.dp),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -74,13 +82,24 @@ fun AnalysisCard(biomarker: BiomarkerAnalysis) {
                     }
                 }
 
-                Surface(color = biomarker.badgeBg, shape = RoundedCornerShape(6.dp)) {
-                    Text(
-                        text = biomarker.badgeText,
-                        color = biomarker.badgeColor,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Surface(color = biomarker.badgeBg, shape = RoundedCornerShape(6.dp)) {
+                        Text(
+                            text = biomarker.badgeText,
+                            color = biomarker.badgeColor,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                    Icon(
+                        Icons.Default.ChevronRight,
+                        contentDescription = "Details",
+                        tint = Color(0xFF9CA3AF),
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }

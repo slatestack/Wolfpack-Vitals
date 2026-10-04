@@ -2,6 +2,7 @@ package com.example.wolfpackvitals.ui.components
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,7 +22,9 @@ import com.example.wolfpackvitals.ui.theme.NCStateDarkRed
 @Composable
 fun PulsatingStreamingBadge(
     modifier: Modifier = Modifier,
-    text: String = "Streaming to DBX"
+    isStreaming: Boolean = true,
+    text: String = if (isStreaming) "Streaming 64Hz" else "Stream Paused",
+    onClick: () -> Unit = {}
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val alpha by infiniteTransition.animateFloat(
@@ -44,25 +47,28 @@ fun PulsatingStreamingBadge(
     )
 
     Surface(
-        modifier = modifier,
-        color = NCStateDarkRed,
+        modifier = modifier.clickable { onClick() },
+        color = if (isStreaming) NCStateDarkRed else Color(0xFF4B5563),
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Box(
                 modifier = Modifier
                     .size(8.dp)
-                    .scale(scale)
-                    .background(Color.Green.copy(alpha = alpha), shape = CircleShape)
+                    .scale(if (isStreaming) scale else 1.0f)
+                    .background(
+                        if (isStreaming) Color.Green.copy(alpha = alpha) else Color.LightGray,
+                        shape = CircleShape
+                    )
             )
             Text(
                 text = text,
                 color = Color.White,
-                fontSize = 10.sp,
+                fontSize = 11.sp,
                 fontWeight = FontWeight.Bold
             )
         }
