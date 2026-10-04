@@ -11,7 +11,7 @@ cur = conn.cursor()
 table = "hr"
 variable1 = "hr"
 condition = ">"
-variable2 = "95"
+variable2 = "80"
 
 sqlString = f"SELECT * from {table} WHERE {variable1} {condition} {variable2}"
 
