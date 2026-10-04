@@ -3,6 +3,7 @@ package com.example.wolfpackvitals.data
 import androidx.compose.ui.graphics.Color
 import com.example.wolfpackvitals.ui.theme.*
 import com.example.wolfpackvitals.data.replay.Patient16ReplayState
+import com.example.wolfpackvitals.data.analysis.ON_DEVICE_MODEL_VERSION
 import com.example.wolfpackvitals.data.network.MetricResult
 import java.util.Locale
 
@@ -174,9 +175,10 @@ fun BiomarkerAnalysis.withResult(next: MetricResult): BiomarkerAnalysis {
     if (!next.available) return pendingAnalysis(next.reason ?: "Analysis is unavailable.", unavailable = true)
     val category = requireNotNull(next.category)
     val numeric = String.format(Locale.US, "%.3g %s", next.value, next.unit)
+    val source = if (next.modelVersion == ON_DEVICE_MODEL_VERSION) " $ON_DEVICE_MODEL_VERSION." else ""
     val text = if (id == "glucose_variability" && next.supportsPostmealSpikes) {
         "$numeric • ${category.label}. The model indicates greater likelihood of spikes after meals."
-    } else "$numeric • ${category.label}."
+    } else "$numeric • ${category.label}.$source"
     return copy(result = next, badgeText = category.badge, badgeBg = Color(category.backgroundHex),
         badgeColor = Color(category.colorHex), severity = category.label,
         description = text, clinicalInsight = next.explanation ?: initialAnalysis(id).clinicalInsight,

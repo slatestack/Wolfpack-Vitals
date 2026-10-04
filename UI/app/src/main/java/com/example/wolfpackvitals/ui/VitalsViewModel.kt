@@ -8,6 +8,8 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.wolfpackvitals.BuildConfig
 import com.example.wolfpackvitals.data.*
+import com.example.wolfpackvitals.data.analysis.OnDeviceAnalyzer
+import com.example.wolfpackvitals.data.analysis.ON_DEVICE_MODEL_VERSION
 import com.example.wolfpackvitals.data.network.*
 import com.example.wolfpackvitals.data.replay.*
 import kotlinx.coroutines.CancellationException
@@ -30,14 +32,16 @@ class VitalsViewModel(
     private val predictionClient: PredictionClient,
     monotonicNowMs: () -> Long = { SystemClock.uptimeMillis() },
     private val wallNowMs: () -> Long = { System.currentTimeMillis() },
-    private val dataDispatcher: CoroutineDispatcher = Dispatchers.IO
+    private val dataDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val onDeviceAnalyzer: OnDeviceAnalyzer? = null
 ) : ViewModel() {
     companion object {
         fun factory(assets: AssetManager) = viewModelFactory {
             initializer {
                 VitalsViewModel(
                     CsvPatient16DataSource { name -> assets.open("patient-16-data/$name").reader() },
-                    OkHttpPredictionClient(BuildConfig.FASTAPI_BASE_URL)
+                    OkHttpPredictionClient(BuildConfig.FASTAPI_BASE_URL),
+                    onDeviceAnalyzer = OnDeviceAnalyzer()
                 )
             }
         }
@@ -45,6 +49,7 @@ class VitalsViewModel(
 
     private var replayJob: Job? = null
     private var replaySession: Patient16ReplaySession? = null
+    private var patient16Data: Patient16Data? = null
     private val replayClock = ActiveReplayClock(monotonicNowMs)
     private val pendingSnapshots = ArrayDeque<ReplaySnapshot>()
     private val inFlightRequests = mutableMapOf<Int, PredictionRequest>()
@@ -102,7 +107,9 @@ class VitalsViewModel(
     private fun markAnalysisPending(message: String, unavailable: Boolean = false) {
         _uiState.update { current ->
             fun pending(card: BiomarkerAnalysis): BiomarkerAnalysis {
-                val reason = if (card.result?.available != true && !unavailable) readinessReasons[card.id] else null
+                // On-device estimates fill in for the API, so API readiness never blocks the cards.
+                val reason = if (card.result?.available != true && !unavailable && onDeviceAnalyzer == null)
+                    readinessReasons[card.id] else null
                 return card.pendingAnalysis(reason ?: message, unavailable || reason != null)
             }
             val risk = pending(current.pipelineStatus.analysis)
@@ -195,6 +202,7 @@ class VitalsViewModel(
         replayJob = viewModelScope.launch {
             try {
                 val data = withContext(dataDispatcher) { patient16DataSource.load() }
+                patient16Data = data
                 replaySession = Patient16ReplaySession(data)
                 _uiState.update { it.copy(replay = it.replay.copy(isLoading = false)) }
                 replayClock.setActive(_uiState.value.replay.isAdvancing)
@@ -255,6 +263,10 @@ class VitalsViewModel(
         val payload = snapshot.sourceWindow?.let {
             DashboardPayload("16", sessionToken, (snapshot.activeElapsedMs / REPLAY_SEND_INTERVAL_MS).toInt(), snapshot)
         }
+        val local = patient16Data?.let { data ->
+            onDeviceAnalyzer?.analyze(data, snapshot, _uiState.value.healthProfile)
+        }
+        if (local != null) applyResults(local)
         val onResult: (Result<DashboardResponse>) -> Unit = { outcome ->
             viewModelScope.launch(Dispatchers.Main) {
                 if (sendingSessionId == sessionId && generation == analysisGeneration) {
@@ -274,18 +286,15 @@ class VitalsViewModel(
                             lastApiError = if (result.isFailure) "Analysis request failed." else null
                         ), pipelineStatus = current.pipelineStatus.copy(isSyncing = false)) }
                         result.fold(onSuccess = { response ->
-                            _uiState.update { current ->
-                                val risk = current.pipelineStatus.analysis.withResult(response.results["prediabetes_risk"]
-                                    ?: MetricResult.unavailable("The risk estimate was not returned."))
-                                current.copy(biomarkers = current.biomarkers.map { card -> card.withResult(response.results[card.id]
-                                        ?: MetricResult.unavailable("The analysis was not returned.")) },
-                                    userProfile = current.userProfile.copy(databricksConnected = response.results.values.any { it.available }),
-                                    pipelineStatus = current.pipelineStatus.copy(analysis = risk,
-                                        riskLevelText = risk.severity ?: risk.badgeText, lastSyncedText = risk.badgeText,
-                                        clusterStatus = if (risk.badgeText in listOf("Stable", "Monitoring")) "Result available" else "Analysis unavailable",
-                                        statusDescription = risk.description))
-                            }
-                        }, onFailure = { markAnalysisPending("Analysis request failed. Try syncing again.", unavailable = true) })
+                            // Model results win; on-device estimates cover anything the API could not analyze.
+                            applyResults(DASHBOARD_METRICS.associateWith { id ->
+                                response.results[id]?.takeIf { it.available } ?: local?.get(id) ?: response.results[id]
+                                    ?: MetricResult.unavailable(if (id == "prediabetes_risk") "The risk estimate was not returned."
+                                        else "The analysis was not returned.")
+                            }, databricksConnected = response.results.values.any { it.available })
+                        }, onFailure = {
+                            if (local == null) markAnalysisPending("Analysis request failed. Try syncing again.", unavailable = true)
+                        })
                         onCompleted?.invoke()
                     }
                 }
@@ -299,13 +308,33 @@ class VitalsViewModel(
         }
     }
 
+    private fun applyResults(results: Map<String, MetricResult>, databricksConnected: Boolean = false) {
+        _uiState.update { current ->
+            val risk = current.pipelineStatus.analysis.withResult(results["prediabetes_risk"]
+                ?: MetricResult.unavailable("The risk estimate was not returned."))
+            val riskAvailable = risk.badgeText in listOf("Stable", "Monitoring")
+            current.copy(biomarkers = current.biomarkers.map { card -> card.withResult(results[card.id]
+                    ?: MetricResult.unavailable("The analysis was not returned.")) },
+                userProfile = current.userProfile.copy(databricksConnected = databricksConnected),
+                pipelineStatus = current.pipelineStatus.copy(analysis = risk,
+                    riskLevelText = risk.severity ?: risk.badgeText, lastSyncedText = risk.badgeText,
+                    clusterStatus = when {
+                        !riskAvailable -> "Analysis unavailable"
+                        risk.modelVersion == ON_DEVICE_MODEL_VERSION -> ON_DEVICE_MODEL_VERSION
+                        else -> "Result available"
+                    },
+                    statusDescription = risk.description))
+        }
+    }
+
     private fun cancelInFlightRequests() {
         analysisGeneration++
         val requests = inFlightRequests.values.toList()
         inFlightRequests.clear()
         requests.forEach { it.cancel() }
         if (_uiState.value.pipelineStatus.isSyncing) {
-            markAnalysisPending("Analysis was interrupted. Try syncing again.", unavailable = true)
+            // On-device estimates for this window are already shown; only the API upgrade was interrupted.
+            if (onDeviceAnalyzer == null) markAnalysisPending("Analysis was interrupted. Try syncing again.", unavailable = true)
             _uiState.update { it.copy(pipelineStatus = it.pipelineStatus.copy(isSyncing = false)) }
         }
     }
@@ -407,6 +436,21 @@ class VitalsViewModel(
                     restingBpm = restingBpm
                 )
             )
+        }
+        refreshOnDeviceRisk()
+    }
+
+    private fun refreshOnDeviceRisk() {
+        val snapshot = latestSnapshot ?: return
+        val data = patient16Data ?: return
+        val analyzer = onDeviceAnalyzer ?: return
+        if (_uiState.value.pipelineStatus.analysis.modelVersion != ON_DEVICE_MODEL_VERSION) return
+        val risk = analyzer.analyze(data, snapshot, _uiState.value.healthProfile)["prediabetes_risk"] ?: return
+        _uiState.update { current ->
+            val analysis = current.pipelineStatus.analysis.withResult(risk)
+            current.copy(pipelineStatus = current.pipelineStatus.copy(analysis = analysis,
+                riskLevelText = analysis.severity ?: analysis.badgeText, lastSyncedText = analysis.badgeText,
+                statusDescription = analysis.description))
         }
     }
 

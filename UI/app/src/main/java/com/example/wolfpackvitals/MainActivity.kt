@@ -91,92 +91,94 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 ) { innerPadding ->
-                    NavHost(
-                        navController = navController,
-                        startDestination = "landing",
-                        modifier = Modifier.padding(innerPadding)
-                    ) {
-                        // 1. Landing Screen (Hero / Welcome Page)
-                        composable("landing") {
-                            LandingScreen(
-                                onNavigateToLogin = { navController.navigate("login") },
-                                onNavigateToRegister = { navController.navigate("register") }
-                            )
+                    Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+                        NavHost(
+                            navController = navController,
+                            startDestination = "landing",
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            // 1. Landing Screen (Hero / Welcome Page)
+                            composable("landing") {
+                                LandingScreen(
+                                    onNavigateToLogin = { navController.navigate("login") },
+                                    onNavigateToRegister = { navController.navigate("register") }
+                                )
+                            }
+
+                            // 2. Sign In Screen
+                            composable("login") {
+                                LoginScreen(
+                                    viewModel = vitalsViewModel,
+                                    onLoginSuccess = {
+                                        navController.navigate("dashboard") {
+                                            popUpTo("landing") { inclusive = true }
+                                        }
+                                    },
+                                    onNavigateToRegister = {
+                                        navController.navigate("register") {
+                                            popUpTo("login") { inclusive = true }
+                                        }
+                                    },
+                                    onBack = { navController.popBackStack() }
+                                )
+                            }
+
+                            // 3. Register Screen
+                            composable("register") {
+                                RegisterScreen(
+                                    viewModel = vitalsViewModel,
+                                    onRegisterSuccess = {
+                                        navController.navigate("dashboard") {
+                                            popUpTo("landing") { inclusive = true }
+                                        }
+                                    },
+                                    onNavigateToLogin = {
+                                        navController.navigate("login") {
+                                            popUpTo("register") { inclusive = true }
+                                        }
+                                    },
+                                    onBack = { navController.popBackStack() }
+                                )
+                            }
+
+                            // 4. Main Telemetry Dashboard
+                            composable("dashboard") {
+                                DashboardScreen(
+                                    uiState = uiState,
+                                    viewModel = vitalsViewModel
+                                )
+                            }
+
+                            // 5. User & Wearables Profile
+                            composable("profile") {
+                                ProfileScreen(
+                                    uiState = uiState,
+                                    viewModel = vitalsViewModel,
+                                    onLogout = {
+                                        navController.navigate("landing") {
+                                            popUpTo(0) { inclusive = true }
+                                        }
+                                    }
+                                )
+                            }
                         }
 
-                        // 2. Sign In Screen
-                        composable("login") {
-                            LoginScreen(
-                                viewModel = vitalsViewModel,
-                                onLoginSuccess = {
-                                    navController.navigate("dashboard") {
-                                        popUpTo("landing") { inclusive = true }
-                                    }
+                        if (showSettingsDialog) {
+                            SettingsDialog(
+                                settings = uiState.settings,
+                                onDismiss = { showSettingsDialog = false },
+                                onSaveSettings = { live, caching, deid ->
+                                    vitalsViewModel.updateSettings(
+                                        liveStreaming = live,
+                                        offlineCaching = caching,
+                                        deidentified = deid
+                                    )
                                 },
-                                onNavigateToRegister = {
-                                    navController.navigate("register") {
-                                        popUpTo("login") { inclusive = true }
-                                    }
-                                },
-                                onBack = { navController.popBackStack() }
-                            )
-                        }
-
-                        // 3. Register Screen
-                        composable("register") {
-                            RegisterScreen(
-                                viewModel = vitalsViewModel,
-                                onRegisterSuccess = {
-                                    navController.navigate("dashboard") {
-                                        popUpTo("landing") { inclusive = true }
-                                    }
-                                },
-                                onNavigateToLogin = {
-                                    navController.navigate("login") {
-                                        popUpTo("register") { inclusive = true }
-                                    }
-                                },
-                                onBack = { navController.popBackStack() }
-                            )
-                        }
-
-                        // 4. Main Telemetry Dashboard
-                        composable("dashboard") {
-                            DashboardScreen(
-                                uiState = uiState,
-                                viewModel = vitalsViewModel
-                            )
-                        }
-
-                        // 5. User & Wearables Profile
-                        composable("profile") {
-                            ProfileScreen(
-                                uiState = uiState,
-                                viewModel = vitalsViewModel,
-                                onLogout = {
-                                    navController.navigate("landing") {
-                                        popUpTo(0) { inclusive = true }
-                                    }
+                                onClearCache = {
+                                    vitalsViewModel.clearLocalCache { }
                                 }
                             )
                         }
-                    }
-
-                    if (showSettingsDialog) {
-                        SettingsDialog(
-                            settings = uiState.settings,
-                            onDismiss = { showSettingsDialog = false },
-                            onSaveSettings = { live, caching, deid ->
-                                vitalsViewModel.updateSettings(
-                                    liveStreaming = live,
-                                    offlineCaching = caching,
-                                    deidentified = deid
-                                )
-                            },
-                            onClearCache = {
-                                vitalsViewModel.clearLocalCache { }
-                            }
-                        )
                     }
                 }
             }

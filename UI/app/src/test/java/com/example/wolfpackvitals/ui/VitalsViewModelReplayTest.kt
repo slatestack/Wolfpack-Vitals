@@ -1,6 +1,8 @@
 package com.example.wolfpackvitals.ui
 
 import androidx.lifecycle.ViewModelStore
+import com.example.wolfpackvitals.data.analysis.ON_DEVICE_MODEL_VERSION
+import com.example.wolfpackvitals.data.analysis.OnDeviceAnalyzer
 import com.example.wolfpackvitals.data.network.*
 import com.example.wolfpackvitals.data.network.PredictionClient
 import com.example.wolfpackvitals.data.network.PredictionPayload
@@ -29,11 +31,11 @@ class VitalsViewModelReplayTest {
         Dispatchers.resetMain()
     }
 
-    private fun viewModel(): VitalsViewModel {
+    private fun viewModel(onDeviceAnalyzer: OnDeviceAnalyzer? = null): VitalsViewModel {
         val vm = VitalsViewModel(
             Patient16DataSource { loadCount++; repositoryPatient16Data() }, client,
             monotonicNowMs = { scheduler.currentTime }, wallNowMs = { scheduler.currentTime },
-            dataDispatcher = dispatcher
+            dataDispatcher = dispatcher, onDeviceAnalyzer = onDeviceAnalyzer
         )
         store.put("vitals", vm)
         vm.setApplicationActive(true)
@@ -57,6 +59,39 @@ class VitalsViewModelReplayTest {
         advanceTimeBy(1)
         runCurrent()
         assertEquals(1, client.requests.size)
+    }
+
+    @Test fun onDeviceEstimatesKeepEveryMetricAvailableWhenTheApiFails() = runTest(dispatcher) {
+        client.readinessResult = Result.failure(IOException("API offline"))
+        client.failAll = true
+        val vm = viewModel(OnDeviceAnalyzer())
+        runCurrent()
+        assertTrue(vm.uiState.value.biomarkers.all { it.badgeText == "Collecting data" })
+        repeat(2) {
+            advanceTimeBy(REPLAY_SEND_INTERVAL_MS)
+            runCurrent()
+            val cards = vm.uiState.value.biomarkers + vm.uiState.value.pipelineStatus.analysis
+            assertTrue(cards.all { it.badgeText in listOf("Stable", "Monitoring") && it.modelVersion == ON_DEVICE_MODEL_VERSION })
+            assertEquals(ON_DEVICE_MODEL_VERSION, vm.uiState.value.pipelineStatus.clusterStatus)
+        }
+        assertNotNull(vm.uiState.value.replay.lastApiError)
+        vm.togglePatient16Replay()
+        runCurrent()
+        assertTrue(vm.uiState.value.biomarkers.none { it.badgeText == "Unavailable" })
+    }
+
+    @Test fun availableApiResultsOverrideOnDeviceEstimates() = runTest(dispatcher) {
+        val vm = viewModel(OnDeviceAnalyzer())
+        client.autoComplete = false
+        runCurrent()
+        advanceTimeBy(REPLAY_SEND_INTERVAL_MS)
+        runCurrent()
+        client.complete(0, mapOf("hrv" to valid(RiskCategory.LOW)))
+        runCurrent()
+        val cards = vm.uiState.value.biomarkers.associateBy { it.id }
+        assertEquals("test-model", cards.getValue("hrv").modelVersion)
+        assertEquals(ON_DEVICE_MODEL_VERSION, cards.getValue("glucose_variability").modelVersion)
+        assertEquals(ON_DEVICE_MODEL_VERSION, vm.uiState.value.pipelineStatus.analysis.modelVersion)
     }
 
     @Test fun readinessNetworkFailureIsActionableAndDoesNotBlockCollection() = runTest(dispatcher) {
@@ -353,6 +388,7 @@ class VitalsViewModelReplayTest {
         val requests = mutableListOf<DashboardPayload>()
         val callbacks = mutableListOf<(Result<DashboardResponse>) -> Unit>()
         var failFirst = false
+        var failAll = false
         var autoComplete = true
         var cancellations = 0
         override fun send(payload: PredictionPayload, onResult: (Result<String>) -> Unit): PredictionRequest =
@@ -368,7 +404,7 @@ class VitalsViewModelReplayTest {
             payloads += PredictionPayload.from(payload.snapshot.averages)
             callbacks += onResult
             if (autoComplete) {
-                if (failFirst && payloads.size == 1) onResult(Result.failure(IOException("Test network failure")))
+                if (failAll || failFirst && payloads.size == 1) onResult(Result.failure(IOException("Test network failure")))
                 else complete(requests.lastIndex)
             }
             return PredictionRequest {
