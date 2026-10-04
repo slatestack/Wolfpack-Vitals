@@ -41,6 +41,54 @@ class VitalsViewModelReplayTest {
         return vm
     }
 
+    @Test fun missingConfigurationIsExplainedBeforeFiveMinutesAndSurvivesCheckpoints() = runTest(dispatcher) {
+        client.readinessResult = Result.success(AnalysisReadiness(DASHBOARD_METRICS.associateWith {
+            "Analysis is not configured. Ask the service operator to install a verified workflow."
+        }))
+        val vm = viewModel()
+        runCurrent()
+        assertTrue(client.requests.isEmpty())
+        assertTrue(vm.uiState.value.biomarkers.all { it.badgeText == "Unavailable" && it.description.contains("operator") })
+        assertEquals("Unavailable", vm.uiState.value.pipelineStatus.analysis.badgeText)
+        advanceTimeBy(REPLAY_SEND_INTERVAL_MS - 1)
+        runCurrent()
+        assertTrue(client.requests.isEmpty())
+        assertTrue(vm.uiState.value.biomarkers.all { it.description.contains("operator") })
+        advanceTimeBy(1)
+        runCurrent()
+        assertEquals(1, client.requests.size)
+    }
+
+    @Test fun readinessNetworkFailureIsActionableAndDoesNotBlockCollection() = runTest(dispatcher) {
+        client.readinessResult = Result.failure(IOException("sensitive hostname"))
+        val vm = viewModel()
+        runCurrent()
+        assertTrue(vm.uiState.value.biomarkers.all { it.description.contains("API connection") && !it.description.contains("sensitive") })
+        advanceTimeBy(REPLAY_SEND_INTERVAL_MS)
+        runCurrent()
+        assertEquals(1, client.requests.size)
+        assertEquals(1, vm.uiState.value.heartRate.hourlyHistory.size)
+    }
+
+    @Test fun unavailableRefreshRetainsGlucoseWhileHRVRemainsAvailable() = runTest(dispatcher) {
+        client.autoComplete = false
+        val vm = viewModel()
+        runCurrent()
+        advanceTimeBy(REPLAY_SEND_INTERVAL_MS)
+        runCurrent()
+        client.complete(0, mapOf("glucose_variability" to valid(), "hrv" to valid(RiskCategory.LOW)))
+        runCurrent()
+        val previous = vm.uiState.value.biomarkers.first { it.id == "glucose_variability" }.result
+        advanceTimeBy(REPLAY_SEND_INTERVAL_MS)
+        runCurrent()
+        client.complete(1, mapOf("hrv" to valid(RiskCategory.LOW)))
+        runCurrent()
+        assertEquals("Outdated", vm.uiState.value.biomarkers.first { it.id == "glucose_variability" }.badgeText)
+        assertEquals(previous, vm.uiState.value.biomarkers.first { it.id == "glucose_variability" }.result)
+        assertEquals("Stable", vm.uiState.value.biomarkers.first { it.id == "hrv" }.badgeText)
+        assertEquals("Unavailable", vm.uiState.value.pipelineStatus.analysis.badgeText)
+    }
+
     @Test fun uninterruptedHourSendsTwelveRequestsAndNewHourStartsAtFirstRow() = runTest(dispatcher) {
         val vm = viewModel()
         runCurrent()
@@ -277,6 +325,11 @@ class VitalsViewModelReplayTest {
     }
 
     private class RecordingPredictionClient : PredictionClient {
+        override fun readiness(onResult: (Result<AnalysisReadiness>) -> Unit): PredictionRequest {
+            onResult(readinessResult)
+            return PredictionRequest {}
+        }
+        var readinessResult = Result.success(AnalysisReadiness(DASHBOARD_METRICS.associateWith { null }))
         val payloads = mutableListOf<PredictionPayload>()
         val requests = mutableListOf<DashboardPayload>()
         val callbacks = mutableListOf<(Result<DashboardResponse>) -> Unit>()

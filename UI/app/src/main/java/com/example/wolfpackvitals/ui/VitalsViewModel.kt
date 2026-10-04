@@ -58,10 +58,39 @@ class VitalsViewModel(
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
 
+    private var readinessRequest: PredictionRequest? = null
+    private var readinessReasons: Map<String, String?> = emptyMap()
+    private var readinessGeneration = 0
+
+    init { checkReadiness() }
+
+    private fun checkReadiness() {
+        val generation = ++readinessGeneration
+        val checkingSession = sessionId
+        val checkingAttempt = latestAttempt
+        readinessRequest?.cancel()
+        try {
+            readinessRequest = predictionClient.readiness { outcome ->
+                viewModelScope.launch(Dispatchers.Main) {
+                    if (generation != readinessGeneration || checkingSession != sessionId ||
+                        checkingAttempt != latestAttempt) return@launch
+                    readinessReasons = outcome.getOrNull()?.reasons ?: DASHBOARD_METRICS.associateWith {
+                        "Cannot check analysis availability. Check the API connection and try syncing again."
+                    }
+                    markAnalysisPending("Complete a five-minute window to run analysis.")
+                }
+            }
+        } catch (error: Exception) {
+            readinessReasons = DASHBOARD_METRICS.associateWith { "Cannot check analysis availability. Check the API connection and try syncing again." }
+            markAnalysisPending("Complete a five-minute window to run analysis.")
+        }
+    }
+
     // Manual sync uses the same timestamped analysis flow as replay.
     fun syncPipeline(onCompleted: (() -> Unit)? = null) {
         val snapshot = latestSnapshot
         if (snapshot == null) {
+            checkReadiness()
             markAnalysisPending("Complete a five-minute window to run analysis.")
             onCompleted?.invoke()
             return
@@ -72,8 +101,12 @@ class VitalsViewModel(
 
     private fun markAnalysisPending(message: String, unavailable: Boolean = false) {
         _uiState.update { current ->
-            val risk = current.pipelineStatus.analysis.pendingAnalysis(message, unavailable)
-            current.copy(biomarkers = current.biomarkers.map { it.pendingAnalysis(message, unavailable) },
+            fun pending(card: BiomarkerAnalysis): BiomarkerAnalysis {
+                val reason = if (card.result?.available != true && !unavailable) readinessReasons[card.id] else null
+                return card.pendingAnalysis(reason ?: message, unavailable || reason != null)
+            }
+            val risk = pending(current.pipelineStatus.analysis)
+            current.copy(biomarkers = current.biomarkers.map(::pending),
                 userProfile = current.userProfile.copy(databricksConnected = false),
                 pipelineStatus = current.pipelineStatus.copy(analysis = risk, statusDescription = message,
                     lastSyncedText = risk.badgeText, riskLevelText = risk.severity ?: risk.badgeText,
@@ -150,6 +183,7 @@ class VitalsViewModel(
         collectedHistory.clear()
         _uiState.update { it.copy(biomarkers = DashboardUiState().biomarkers,
             pipelineStatus = DatabricksPipelineStatus()) }
+        checkReadiness()
         _uiState.update { it.copy(heartRate = HeartRateReading(selectedRange = it.heartRate.selectedRange, restingBpm = it.heartRate.restingBpm, isLineMode = it.heartRate.isLineMode)) }
         pendingSnapshots.clear()
         replayClock.setActive(false)
@@ -277,6 +311,8 @@ class VitalsViewModel(
     }
 
     override fun onCleared() {
+        readinessGeneration++
+        readinessRequest?.cancel()
         replayClock.setActive(false)
         cancelInFlightRequests()
         super.onCleared()

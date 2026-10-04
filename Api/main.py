@@ -1,6 +1,4 @@
 from fastapi import FastAPI
-from google import genai
-from databricks.sdk import WorkspaceClient
 from dotenv import load_dotenv
 import os
 from pathlib import Path
@@ -16,6 +14,10 @@ load_dotenv(Path(__file__).with_name('.env'))
 app = FastAPI()
 app.state.dashboard_analyzer = DatabricksDashboardAnalyzer()
 
+@app.get('/analysis_readiness')
+def analysis_readiness():
+    return app.state.dashboard_analyzer.readiness()
+
 @app.post("/make_prediction", response_model=DashboardResponse)
 def make_dashboard_prediction(request: DashboardRequest):
     # FastAPI runs synchronous endpoints in its worker pool, keeping the event loop free.
@@ -24,6 +26,9 @@ def make_dashboard_prediction(request: DashboardRequest):
 
 @app.get("/make_prediction")
 def make_prediction(heartbeat: str, glucose: str, Interbeat_interval: str, ACC: str)->str:
+    # Legacy integrations must not prevent structured readiness/analysis from starting.
+    from google import genai
+    from databricks.sdk import WorkspaceClient
 
     load_dotenv()
     space_id = os.getenv("space_id")
@@ -62,4 +67,3 @@ def make_prediction(heartbeat: str, glucose: str, Interbeat_interval: str, ACC: 
     else:
         return response.text
     
-

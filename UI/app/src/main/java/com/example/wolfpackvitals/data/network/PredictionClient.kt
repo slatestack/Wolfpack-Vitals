@@ -34,6 +34,7 @@ data class PredictionPayload(
 fun interface PredictionRequest { fun cancel() }
 
 interface PredictionClient {
+    fun readiness(onResult: (Result<AnalysisReadiness>) -> Unit): PredictionRequest
     fun send(payload: PredictionPayload, onResult: (Result<String>) -> Unit): PredictionRequest
     fun analyze(payload: DashboardPayload, onResult: (Result<DashboardResponse>) -> Unit): PredictionRequest
 }
@@ -50,6 +51,24 @@ class OkHttpPredictionClient(
         .followSslRedirects(false)
         .build()
 ) : PredictionClient {
+    override fun readiness(onResult: (Result<AnalysisReadiness>) -> Unit): PredictionRequest {
+        val call = client.newBuilder().callTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(10, TimeUnit.SECONDS).build().newCall(Request.Builder().url(baseUrl.toHttpUrl().newBuilder()
+            .addPathSegment("analysis_readiness").build()).get().build())
+        call.enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) = onResult(Result.failure(e))
+            override fun onResponse(call: Call, response: Response) {
+                response.use {
+                    onResult(runCatching {
+                        check(response.isSuccessful)
+                        AnalysisReadiness.parse(requireNotNull(response.body).string())
+                    })
+                }
+            }
+        })
+        return PredictionRequest { call.cancel() }
+    }
+
     fun predictionUrl(payload: PredictionPayload): HttpUrl = baseUrl.toHttpUrl().newBuilder()
         .addPathSegment("make_prediction")
         .addQueryParameter("heartbeat", payload.heartbeat)

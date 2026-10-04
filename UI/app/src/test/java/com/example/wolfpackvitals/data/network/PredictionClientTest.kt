@@ -12,6 +12,26 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 class PredictionClientTest {
+    @Test fun readinessChecksTheActualBasePathAndRejectsMalformedResponses() {
+        MockWebServer().use { server ->
+            val statuses = org.json.JSONObject()
+            DASHBOARD_METRICS.forEach { statuses.put(it, org.json.JSONObject().put("configured", false).put("reason", "Install a verified workflow.")) }
+            server.enqueue(MockResponse().setBody(org.json.JSONObject().put("contract_version", "1").put("results", statuses).toString()))
+            server.enqueue(MockResponse().setBody("{}"))
+            server.enqueue(MockResponse().setResponseCode(503))
+            val client = OkHttpPredictionClient(server.url("/api/").toString())
+            repeat(3) { index ->
+                val finished = CountDownLatch(1)
+                var result: Result<AnalysisReadiness>? = null
+                client.readiness { result = it; finished.countDown() }
+                assertTrue(finished.await(5, TimeUnit.SECONDS))
+                assertEquals("/api/analysis_readiness", server.takeRequest().path)
+                if (index == 0) assertTrue(result!!.getOrThrow().reasons.values.all { it == "Install a verified workflow." })
+                else assertTrue(result!!.isFailure)
+            }
+        }
+    }
+
     @Test fun actualPatientAveragesUseExactEncodedFastApiQueryNamesAndLocaleIndependentStrings() {
         val session = Patient16ReplaySession(repositoryPatient16Data())
         val snapshot = session.advanceBy(REPLAY_SEND_INTERVAL_MS).single()

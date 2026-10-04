@@ -6,6 +6,21 @@ import org.json.JSONObject
 
 val DASHBOARD_METRICS = listOf("hr_eda", "glucose_variability", "hrv", "prediabetes_risk")
 
+/** Configuration readiness is separate from an inferred metric result. */
+data class AnalysisReadiness(val reasons: Map<String, String?>) {
+    companion object {
+        fun parse(body: String): AnalysisReadiness {
+            val json = JSONObject(body)
+            require(json.getString("contract_version") == "1")
+            val results = json.getJSONObject("results")
+            return AnalysisReadiness(DASHBOARD_METRICS.associateWith { key ->
+                val status = results.getJSONObject(key)
+                if (status.getBoolean("configured")) null else status.getString("reason").also { require(it.isNotBlank()) }
+            })
+        }
+    }
+}
+
 data class DashboardPayload(val patientId: String, val sessionId: String, val interval: Int, val snapshot: ReplaySnapshot) {
     val windowId: String get() = requireNotNull(snapshot.sourceWindow).id
     fun json(): String {

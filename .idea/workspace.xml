@@ -10,22 +10,23 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="5a070882-a8cb-446a-b9a7-c2e3406930d0" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/.idea/.name" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/codeStyles/Project.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/codeStyles/codeStyleConfig.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/9.6.0/executionHistory/executionHistory.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/9.6.0/executionHistory/executionHistory.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/9.6.0/executionHistory/executionHistory.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/9.6.0/executionHistory/executionHistory.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/9.6.0/fileHashes/fileHashes.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/9.6.0/fileHashes/fileHashes.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/9.6.0/fileHashes/fileHashes.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/9.6.0/fileHashes/fileHashes.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/9.6.0/fileHashes/resourceHashesCache.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/9.6.0/fileHashes/resourceHashesCache.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/buildOutputCleanup.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/buildOutputCleanup/outputFiles.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/buildOutputCleanup/outputFiles.bin" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/config.properties" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/config.properties" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/file-system.probe" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/file-system.probe" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/MainActivity.kt" beforeDir="false" afterPath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/MainActivity.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/data/VitalsData.kt" beforeDir="false" afterPath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/data/VitalsData.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/ui/VitalsViewModel.kt" beforeDir="false" afterPath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/ui/VitalsViewModel.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/ui/components/DatabricksMLCard.kt" beforeDir="false" afterPath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/ui/components/DatabricksMLCard.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/ui/components/Dialogs.kt" beforeDir="false" afterPath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/ui/components/Dialogs.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/ui/components/HeartRateChartCard.kt" beforeDir="false" afterPath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/ui/components/HeartRateChartCard.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/ui/screens/DashboardScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/ui/screens/DashboardScreen.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/ui/screens/ProfileScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/ui/screens/ProfileScreen.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/UI/app/src/main/java/com/example/wolfpackvitals/ui/screens/ResearchScreen.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/deploymentTargetSelector.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/deploymentTargetSelector.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -35,7 +36,7 @@
   <component name="ClangdSettings">
     <option name="formatViaClangd" value="false" />
   </component>
-  <component name="ExecutionTargetManager" SELECTED_TARGET="device_and_snapshot_combo_box_target[LocalEmulator::path=D:\Android_AVD\avd\Medium_Phone.avd]" />
+  <component name="ExecutionTargetManager" SELECTED_TARGET="device_and_snapshot_combo_box_target[LocalEmulator::path=/Users/aaronilyas/.android/avd/Medium_Phone.avd]" />
   <component name="ExternalProjectsData">
     <projectState path="$PROJECT_DIR$">
       <ProjectState />
@@ -80,17 +81,19 @@
     "RunOnceActivity.cidr.known.project.marker": "true",
     "RunOnceActivity.git.unshallow": "true",
     "RunOnceActivity.readMode.enableVisualFormatting": "true",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
     "cf.first.check.clang-format": "false",
     "cidr.known.project.marker": "true",
-    "git-widget-placeholder": "main",
+    "git-widget-placeholder": "feature/patient-16-hourly-replay",
     "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "/Users/aaronilyas/Wolfpack-Vitals",
     "project.structure.last.edited": "Modules",
     "project.structure.proportion": "0.17",
     "project.structure.side.proportion": "0.2",
-    "settings.editor.selected.configurable": "emulator"
+    "settings.editor.selected.configurable": "reference.settingsdialog.project.gradle"
   }
 }]]></component>
-  <component name="RunManager" selected="Android App.UI.app">
+  <component name="RunManager" selected="Android App.app">
     <configuration name="UI.app" type="AndroidRunConfigurationType" factoryName="Android App" activateToolWindowBeforeRun="false">
       <module name="WolfpackVitals.UI.app" />
       <option name="ANDROID_RUN_CONFIGURATION_SCHEMA_VERSION" value="1" />
@@ -158,7 +161,7 @@
       </method>
     </configuration>
     <configuration name="app" type="AndroidRunConfigurationType" factoryName="Android App" activateToolWindowBeforeRun="false">
-      <module name="WolfpackVitals.app" />
+      <module name="WolfpackVitals.UI.app" />
       <option name="ANDROID_RUN_CONFIGURATION_SCHEMA_VERSION" value="1" />
       <option name="DEPLOY" value="true" />
       <option name="DEPLOY_APK_FROM_BUNDLE" value="false" />

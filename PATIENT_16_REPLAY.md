@@ -56,7 +56,9 @@ window, per-sensor units/coverage/readings, meal context, features, and compatib
 The API returns independent `hr_eda`, `glucose_variability`, `hrv`, and `prediabetes_risk` results.
 The client validates each result separately and checks the response identity before binding it.
 
-All cards start at **Collecting data**, with empty bars and null confidence. Available model
+Cards start with empty bars and null confidence. A configuration readiness check immediately
+shows **Unavailable** with an actionable reason when configuration/access is missing; configured
+cards show **Collecting data** until a completed window is analyzed. Available model
 categories drive badge, color, severity, and filter membership together. Typical/low are
 **Stable**; moderate/elevated/high are **Monitoring**, with actual severity shown separately
 and high colored red. Positions and reference ranges come from validated model configuration.
@@ -110,3 +112,7 @@ and 3 native Compose tests passed. Native captures cover moderate/high glucose s
 model-defined HRV range highlighting, and confidence/probability separation with explicitly
 synthetic fixtures. Existing APK and updated screenshots were compared; labels fit and
 replay diagnostics remain hidden. No applicable live prediction model was found.
+
+Availability update: cards now check configuration before collection and preserve reasons
+through checkpoints. See [current verification and external dependencies](Api/ANALYSIS_AVAILABILITY.md)
+for the effective URL, fresh audit, exact local coverage and independent refresh behavior.

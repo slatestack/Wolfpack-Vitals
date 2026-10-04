@@ -1,0 +1,178 @@
+{
+  "verified_at": "2026-10-04T13:42:15.941928+00:00",
+  "scope": "workspace.wolfpack-vitals and accessible serving endpoints",
+  "tables": [
+    {
+      "name": "workspace.wolfpack-vitals.acc_values",
+      "columns": [
+        "patientNumber",
+        "datetime",
+        "acc_x",
+        "acc_y",
+        "acc_z"
+      ]
+    },
+    {
+      "name": "workspace.wolfpack-vitals.dexcom_values",
+      "columns": [
+        "patientNumber",
+        "Index",
+        "Timestamp (YYYY-MM-DDThh:mm:ss)",
+        "Event Type",
+        "Event Subtype",
+        "Patient Info",
+        "Device Info",
+        "Source Device ID",
+        "Glucose Value (mg/dL)",
+        "Insulin Value (u)",
+        "Carb Value (grams)",
+        "Duration (hh:mm:ss)",
+        "Glucose Rate of Change (mg/dL/min)",
+        "Transmitter Time (Long Integer)"
+      ]
+    },
+    {
+      "name": "workspace.wolfpack-vitals.eda_values",
+      "columns": [
+        "patientNumber",
+        "datetime",
+        "eda"
+      ]
+    },
+    {
+      "name": "workspace.wolfpack-vitals.hr_values",
+      "columns": [
+        "patientNumber",
+        "datetime",
+        "hr"
+      ]
+    },
+    {
+      "name": "workspace.wolfpack-vitals.ibi_values",
+      "columns": [
+        "patientNumber",
+        "datetime",
+        "ibi"
+      ]
+    },
+    {
+      "name": "workspace.wolfpack-vitals.prediabetes_labels",
+      "columns": [
+        "ID",
+        "Gender",
+        "HbA1c"
+      ]
+    }
+  ],
+  "functions": [],
+  "registered_models": [],
+  "endpoints": [
+    {
+      "name": "databricks-gpt-oss-120b",
+      "type": "FOUNDATION_MODEL_API",
+      "ready": "READY"
+    },
+    {
+      "name": "databricks-gpt-oss-20b",
+      "type": "FOUNDATION_MODEL_API",
+      "ready": "READY"
+    },
+    {
+      "name": "databricks-qwen3-next-80b-a3b-instruct",
+      "type": "FOUNDATION_MODEL_API",
+      "ready": "READY"
+    },
+    {
+      "name": "databricks-qwen35-122b-a10b",
+      "type": "FOUNDATION_MODEL_API",
+      "ready": "READY"
+    },
+    {
+      "name": "databricks-llama-4-maverick",
+      "type": "FOUNDATION_MODEL_API",
+      "ready": "READY"
+    },
+    {
+      "name": "databricks-gemma-3-12b",
+      "type": "FOUNDATION_MODEL_API",
+      "ready": "READY"
+    },
+    {
+      "name": "databricks-gte-large-en",
+      "type": "FOUNDATION_MODEL_API",
+      "ready": "READY"
+    },
+    {
+      "name": "databricks-bge-large-en",
+      "type": "FOUNDATION_MODEL_API",
+      "ready": "READY"
+    },
+    {
+      "name": "databricks-meta-llama-3-1-8b-instruct",
+      "type": "FOUNDATION_MODEL_API",
+      "ready": "READY"
+    },
+    {
+      "name": "databricks-meta-llama-3-3-70b-instruct",
+      "type": "FOUNDATION_MODEL_API",
+      "ready": "READY"
+    },
+    {
+      "name": "databricks-qwen3-embedding-0-6b",
+      "type": "FOUNDATION_MODEL_API",
+      "ready": "READY"
+    },
+    {
+      "name": "databricks-deepseek-v4-flash-0731",
+      "type": "FOUNDATION_MODEL_API",
+      "ready": "READY"
+    }
+  ],
+  "jobs": [],
+  "pipelines": [],
+  "coverage_query_status": "SUCCEEDED",
+  "patient_coverage": [
+    {
+      "sensor": "hr",
+      "first_patient": "1",
+      "last_patient": "15",
+      "patients": "15",
+      "patient_16_rows": "0"
+    },
+    {
+      "sensor": "eda",
+      "first_patient": "1",
+      "last_patient": "15",
+      "patients": "15",
+      "patient_16_rows": "0"
+    },
+    {
+      "sensor": "acc",
+      "first_patient": "1",
+      "last_patient": "15",
+      "patients": "15",
+      "patient_16_rows": "0"
+    },
+    {
+      "sensor": "ibi",
+      "first_patient": "1",
+      "last_patient": "15",
+      "patients": "15",
+      "patient_16_rows": "0"
+    },
+    {
+      "sensor": "glucose",
+      "first_patient": "1",
+      "last_patient": "15",
+      "patients": "15",
+      "patient_16_rows": "0"
+    },
+    {
+      "sensor": "carbohydrate_events",
+      "first_patient": null,
+      "last_patient": null,
+      "patients": "0",
+      "patient_16_rows": "0"
+    }
+  ]
+}

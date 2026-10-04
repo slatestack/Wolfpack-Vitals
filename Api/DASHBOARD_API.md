@@ -102,3 +102,16 @@ Genie supports queries and SQL-result attachments; this does not establish that 
 prediction model exists. [Databricks Genie API](https://docs.databricks.com/api/genie/v1/conversation).
 The UI also removes the universal LF/HF restorative/balance claim.
 [Billman, 2013](https://www.frontiersin.org/journals/physiology/articles/10.3389/fphys.2013.00026/full).
+
+## Availability preflight and isolated metric requests
+
+`GET /analysis_readiness` returns per-metric configuration status, an actionable reason,
+pinned model version and full policy requirements before collection begins. This is a local
+configuration/credential check, not a source or deployment certification. The Android app
+uses it on creation/restart and retries through manual sync before its first completed window.
+
+Inference now calls the custom workflow independently for each eligible metric, concurrently.
+`inputs[0].requested_metrics` selects that metric; `sensors` contains its required series only.
+Workflows must honor the selector without requiring sibling risk inputs. Output remains
+`predictions[0].results`; version, units, thresholds and source checks remain enforced.
+See [availability verification and external dependencies](ANALYSIS_AVAILABILITY.md).

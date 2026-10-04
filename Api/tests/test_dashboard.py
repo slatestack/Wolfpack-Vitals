@@ -66,6 +66,55 @@ class DashboardContractTests(unittest.TestCase):
             for key in ('value', 'confidence', 'risk_probability', 'bar_position', 'threshold_version'):
                 self.assertIsNone(result[key])
 
+    def test_readiness_missing_invalid_and_versioned_configuration(self):
+        with patch.dict(os.environ, {'DASHBOARD_MODEL_CONFIG': ''}), TestClient(app) as client:
+            response = client.get('/analysis_readiness')
+            self.assertEqual(200, response.status_code)
+            self.assertTrue(all(not r['configured'] and 'operator' in r['reason'] for r in response.json()['results'].values()))
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)/'config.json'
+            path.write_text('{}')
+            with patch.dict(os.environ, {'DASHBOARD_MODEL_CONFIG': str(path)}):
+                self.assertTrue(all('invalid' in r['reason'] for r in self.analyzer.readiness()['results'].values()))
+            path.write_text(json.dumps(config_data()))
+            with patch.dict(os.environ, {'DASHBOARD_MODEL_CONFIG': str(path), 'DATABRICKS_HOST': 'https://fixture.invalid', 'DATABRICKS_TOKEN': ''}):
+                self.assertIn('access', self.analyzer.readiness()['results']['glucose_variability']['reason'])
+            with patch.dict(os.environ, {'DASHBOARD_MODEL_CONFIG': str(path), 'DATABRICKS_HOST': 'https://fixture.invalid', 'DATABRICKS_TOKEN': 'fixture'}):
+                status = self.analyzer.readiness()['results']
+                self.assertTrue(status['glucose_variability']['configured'])
+                self.assertEqual('7', status['glucose_variability']['model_version'])
+                self.assertEqual('fixture-v1', status['glucose_variability']['requirements']['threshold_version'])
+                self.assertFalse(status['hrv']['configured'])
+
+    def test_independent_service_failures_and_supported_metrics_across_refreshes(self):
+        config = config_data()
+        config['metrics']['hrv'] = policy_data()
+        config['metrics']['hrv']['required_sensors'] = {'ibi': {'unit': 's', 'min_samples': 2, 'max_gap_seconds': 2}}
+        def invoke(deployment, request):
+            key = next(iter(deployment.metrics))
+            if key == 'hrv' and request.interval == 3:
+                raise TimeoutError('sensitive response')
+            return {key: dict(output(), window_id=request.source_window.id)}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)/'config.json'; path.write_text(json.dumps(config))
+            with patch.dict(os.environ, {'DASHBOARD_MODEL_CONFIG': str(path)}), patch.object(self.analyzer, 'invoke', side_effect=invoke):
+                for interval in (1, 2, 3):
+                    data = request_data()
+                    start = datetime.fromisoformat(data['source_window']['start'])
+                    data['interval'] = interval
+                    data['active_elapsed_ms'] = interval * 300000
+                    data['source_window']['end'] = (start + timedelta(minutes=interval*5)).isoformat()
+                    data['source_window']['id'] = f'window-{interval}'
+                    for series in data['sensors'].values():
+                        reading = series['readings'][-1]
+                        series['readings'] = [dict(reading, timestamp=(start + timedelta(seconds=i)).isoformat()) for i in range(interval*300)]
+                        series['coverage'] = {'sample_count': len(series['readings']), 'first_timestamp': series['readings'][0]['timestamp'], 'last_timestamp': series['readings'][-1]['timestamp']}
+                    response = self.analyzer.analyze(DashboardRequest.model_validate(data))
+                    self.assertEqual('available', response.results['glucose_variability'].availability)
+                    self.assertEqual('unavailable' if interval == 3 else 'available', response.results['hrv'].availability)
+                    self.assertEqual('unavailable', response.results['prediabetes_risk'].availability)
+                    self.assertNotIn('sensitive', response.model_dump_json())
+
     def test_legacy_get_route_and_parameters_remain(self):
         schema = app.openapi()['paths']['/make_prediction']
         self.assertIn('post', schema)
@@ -194,7 +243,8 @@ class DashboardContractTests(unittest.TestCase):
             results=self.analyzer.invoke(self.deployment,self.request)
         self.assertEqual('moderate',results['glucose_variability']['risk_category'])
         posted=json.loads(sent[-1].content)['inputs'][0]
-        self.assertEqual(self.request.model_dump(mode='json')['sensors'],posted['sensors'])
+        self.assertEqual({'glucose': self.request.model_dump(mode='json')['sensors']['glucose']},posted['sensors'])
+        self.assertEqual(['glucose_variability'], posted['requested_metrics'])
         self.assertEqual({'validated_feature':3.5},posted['features'])
         self.assertNotIn('cumulative_replay_averages',posted)
 

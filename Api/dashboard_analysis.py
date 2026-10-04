@@ -1,5 +1,6 @@
 """Verified Databricks custom serving integration; no LLM-text-to-number fallback."""
 import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from urllib.parse import quote
 import httpx
@@ -58,33 +59,64 @@ class Deployment(Contract):
         return self
 
 class DatabricksDashboardAnalyzer:
+    @staticmethod
+    def load_configuration():
+        path = os.getenv('DASHBOARD_MODEL_CONFIG')
+        if not path:
+            return None, 'Analysis is not configured. Ask the service operator to install a verified workflow.'
+        try:
+            return Deployment.model_validate_json(Path(path).read_text()), None
+        except (OSError, ValueError):
+            return None, 'Analysis configuration is invalid. Ask the service operator to repair it.'
+
+    def readiness(self):
+        """Configuration preflight only: never implies that source data or inference is ready."""
+        config, reason = self.load_configuration()
+        credentials = os.getenv('DATABRICKS_HOST', '').startswith('https://') and bool(os.getenv('DATABRICKS_TOKEN'))
+        results = {}
+        for key in METRICS:
+            policy = config.metrics.get(key) if config else None
+            issue = reason
+            if config and not policy:
+                issue = 'This analysis has no verified workflow. Ask the service operator to configure it.'
+            elif policy and not credentials:
+                issue = 'Analysis service access is missing. Ask the service operator to restore it.'
+            results[key] = {'configured': issue is None, 'reason': issue,
+                'model_version': config.entity_version if policy else None,
+                'requirements': policy.model_dump(mode='json') if policy else None}
+        return {'contract_version': '1', 'results': results}
+
     def analyze(self, request: DashboardRequest) -> DashboardResponse:
         wid = request.source_window.id
-        results = {key: MetricResult.unavailable('No verified dashboard prediction workflow is configured.', wid) for key in METRICS}
-        config_path = os.getenv('DASHBOARD_MODEL_CONFIG')
-        if config_path:
-            try:
-                config = Deployment.model_validate_json(Path(config_path).read_text())
-                supported = {}
-                for key, policy in config.metrics.items():
-                    reason = self.missing_inputs(request, key, policy)
-                    if reason:
-                        results[key] = MetricResult.unavailable(reason, wid)
-                    else:
-                        supported[key] = policy
-                if supported:
-                    raw = self.invoke(config, request)
-                    # Every card is validated independently; malformed siblings cannot erase good output.
-                    for key, policy in supported.items():
-                        try:
-                            results[key] = self.validate_output(raw.get(key), policy, config, wid)
-                        except (ValueError, TypeError, KeyError):
-                            results[key] = MetricResult.unavailable('The model returned an invalid result for this metric.', wid)
-            except Exception:
-                # Do not expose credentials, raw API responses, or model text on the dashboard.
-                for key in METRICS:
-                    if results[key].reason == 'No verified dashboard prediction workflow is configured.':
-                        results[key] = MetricResult.unavailable('The verified analysis service is unavailable.', wid)
+        config, reason = self.load_configuration()
+        results = {key: MetricResult.unavailable(reason or 'This analysis has no verified workflow. Ask the service operator to configure it.', wid) for key in METRICS}
+        if config:
+            supported = {}
+            for key, policy in config.metrics.items():
+                reason = self.missing_inputs(request, key, policy)
+                if reason:
+                    results[key] = MetricResult.unavailable(reason, wid)
+                else:
+                    supported[key] = policy
+
+            def analyze_metric(item):
+                key, policy = item
+                # A workflow receives only this eligible metric and its required sensors.
+                isolated = config.model_copy(update={'metrics': {key: policy}})
+                try:
+                    raw = self.invoke(isolated, request)
+                except Exception:
+                    return key, MetricResult.unavailable('Analysis service request failed. Try syncing again.', wid)
+                try:
+                    return key, self.validate_output(raw.get(key), policy, config, wid)
+                except (ValueError, TypeError, KeyError, AttributeError, StopIteration):
+                    return key, MetricResult.unavailable('The model returned an invalid result for this metric.', wid)
+
+            if supported:
+                # Concurrent calls keep the total budget bounded by one inference timeout,
+                # rather than multiplying Android's wait by the number of supported metrics.
+                with ThreadPoolExecutor(max_workers=len(supported)) as workers:
+                    results.update(workers.map(analyze_metric, supported.items()))
         return DashboardResponse(patient_id=request.patient_id, session_id=request.session_id,
             interval=request.interval, window_id=wid, results=results)
 
@@ -96,18 +128,18 @@ class DatabricksDashboardAnalyzer:
         if not minimums[key] <= policy.required_sensors.keys():
             return 'The model input configuration is incomplete.'
         if request.source_window.time_basis != 'verified_utc':
-            return 'Source timestamp alignment has not been verified.'
+            return 'Source timestamp alignment is unverified. Ask the data provider to certify timezone and synchronization.'
         if policy.requires_meals and not request.meals:
-            return 'Required meal context is missing.'
+            return 'Required meal context is missing. Load the associated meal recording.'
         for sensor, required in policy.required_sensors.items():
             series = request.sensors.get(sensor)
             if series is None or len(series.readings) < required.min_samples:
-                return f'Required {sensor.upper()} coverage is missing or insufficient.'
+                return f'Required {sensor.upper()} coverage is missing or insufficient. Load a complete overlapping recording.'
             if series.unit != required.unit:
-                return f'Required {sensor.upper()} units have not been verified.'
+                return f'Required {sensor.upper()} units have not been verified. Confirm the source export units.'
             times = [request.source_window.start] + [r.timestamp for r in series.readings] + [request.source_window.end]
             if any((b-a).total_seconds() > required.max_gap_seconds for a,b in zip(times,times[1:])):
-                return f'Required {sensor.upper()} coverage has a gap or ends too early.'
+                return f'Required {sensor.upper()} coverage has a gap or ends too early. Load a complete overlapping recording.'
         return None
 
     @staticmethod
@@ -130,6 +162,9 @@ class DatabricksDashboardAnalyzer:
                 raise ValueError('Endpoint does not serve the verified model version')
             # All source windows/features/context go to the deployed workflow, never looped averages.
             inputs = request.model_dump(mode='json', exclude={'cumulative_replay_averages'})
+            inputs['requested_metrics'] = list(config.metrics)
+            required = {sensor for policy in config.metrics.values() for sensor in policy.required_sensors}
+            inputs['sensors'] = {sensor: series for sensor, series in inputs['sensors'].items() if sensor in required}
             response = client.post(host + '/serving-endpoints/' + quote(config.endpoint, safe='') + '/invocations', json={'inputs': [inputs]})
             response.raise_for_status()
             predictions = response.json()['predictions']

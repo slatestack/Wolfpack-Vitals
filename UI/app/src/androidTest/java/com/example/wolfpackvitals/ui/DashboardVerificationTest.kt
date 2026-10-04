@@ -185,6 +185,10 @@ class DashboardVerificationTest {
     }
 
     private class FixtureClient : PredictionClient {
+        override fun readiness(onResult: (Result<AnalysisReadiness>) -> Unit): PredictionRequest {
+            onResult(Result.success(AnalysisReadiness(DASHBOARD_METRICS.associateWith { null })))
+            return PredictionRequest {}
+        }
         var supportedRanges = false
         override fun send(payload: PredictionPayload, onResult: (Result<String>) -> Unit): PredictionRequest = error("Legacy GET should not be used")
         override fun analyze(payload: DashboardPayload, onResult: (Result<DashboardResponse>) -> Unit): PredictionRequest {
