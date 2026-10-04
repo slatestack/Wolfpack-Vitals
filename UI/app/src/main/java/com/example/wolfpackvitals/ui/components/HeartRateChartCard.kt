@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -51,9 +52,10 @@ fun HeartRateChartCard(
     lastUpdatedHour: String? = null,
     onRangeSelected: (String) -> Unit = {},
     onLogHourClick: (String) -> Unit = {},
+    isLineMode: Boolean = true,
+    onToggleStyle: () -> Unit = {},
     onExpandClick: () -> Unit = {}
 ) {
-    var isLineMode by remember { mutableStateOf(true) }
     var selectedIndex by remember(history, selectedRange) {
         // If an hour was recently updated, highlight that point by default
         val matchedIdx = if (lastUpdatedHour != null) {
@@ -86,7 +88,7 @@ fun HeartRateChartCard(
                         color = NCStateDarkGray
                     )
                     Text(
-                        text = "Hourly stream • Tap any hour on graph to inspect / log",
+                        text = "Five-minute averages • Tap to inspect / log",
                         fontSize = 11.sp,
                         color = Color(0xFF6B7280)
                     )
@@ -95,7 +97,7 @@ fun HeartRateChartCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     // Toggle Line vs Bar View
                     IconButton(
-                        onClick = { isLineMode = !isLineMode },
+                        onClick = onToggleStyle,
                         modifier = Modifier.size(32.dp)
                     ) {
                         Icon(
@@ -301,7 +303,7 @@ fun HeartRateTelemetryGraph(
     }
 
     Canvas(
-        modifier = modifier
+        modifier = modifier.testTag("heart-rate-graph")
             .pointerInput(history) {
                 detectTapGestures { offset ->
                     if (history.isNotEmpty()) {
@@ -396,7 +398,7 @@ fun HeartRateTelemetryGraph(
         val stepX = plotWidth / (count - 1).coerceAtLeast(1)
         val points = history.mapIndexed { idx, pair ->
             Offset(
-                x = leftMargin + idx * stepX,
+                x = if (count == 1) leftMargin + plotWidth / 2 else leftMargin + idx * stepX,
                 y = getY(pair.second.toFloat())
             )
         }
@@ -422,7 +424,7 @@ fun HeartRateTelemetryGraph(
                 close()
             }
 
-            drawPath(
+            if (count > 1) drawPath(
                 path = fillPath,
                 brush = Brush.verticalGradient(
                     colors = listOf(
@@ -435,7 +437,7 @@ fun HeartRateTelemetryGraph(
             )
 
             // Outer Line Stroke
-            drawPath(
+            if (count > 1) drawPath(
                 path = linePath,
                 color = NCStateRed,
                 style = Stroke(
@@ -539,33 +541,9 @@ fun HeartRateTelemetryGraph(
         )
 
         // Determine which milestone time labels to display for legibility
-        val labelsToShow: List<Pair<Int, String>> = when (selectedRange) {
-            "24H" -> {
-                // Every 4 hours: 12 AM, 4 AM, 8 AM, 12 PM, 4 PM, 8 PM, 11 PM
-                listOf(
-                    0 to "12 AM",
-                    4 to "4 AM",
-                    8 to "8 AM",
-                    12 to "12 PM",
-                    16 to "4 PM",
-                    20 to "8 PM",
-                    (count - 1) to "11 PM"
-                ).filter { it.first in points.indices }
-            }
-            "6H" -> {
-                history.indices.map { it to (history[it].first.take(5)) }
-            }
-            "1H" -> {
-                // Every other minute point
-                history.indices.filter { it % 2 == 0 || it == count - 1 }.map { it to history[it].first }
-            }
-            "7D" -> {
-                history.indices.map { it to history[it].first }
-            }
-            else -> {
-                listOf(0 to (history.firstOrNull()?.first ?: ""), (count - 1) to (history.lastOrNull()?.first ?: ""))
-            }
-        }
+        val stride = ((count + 3) / 4).coerceAtLeast(1)
+        val labelsToShow = history.indices.filter { it % stride == 0 || it == count - 1 }
+            .map { it to history[it].first }
 
         labelsToShow.forEach { (idx, labelText) ->
             if (idx in points.indices) {
@@ -596,6 +574,6 @@ private fun getHeartRateZone(bpm: Int): Pair<String, Color> {
         bpm < 60 -> "Resting Baseline" to Color(0xFF3B82F6)
         bpm in 60..99 -> "Normal / Fat Burn Zone" to Color(0xFF10B981)
         bpm in 100..139 -> "Cardio Aerobic Zone" to Color(0xFFF59E0B)
-        else -> "Peak Sympathetic Zone" to NCStateRed
+        else -> "Peak Heart Rate Zone" to NCStateRed
     }
 }

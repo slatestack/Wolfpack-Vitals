@@ -1,0 +1,121 @@
+{
+  "api_url_tested_on_host": "http://127.0.0.1:8000",
+  "recording_spans": {
+    "hr": {
+      "rows": 499,
+      "unit_label": "bpm",
+      "first": "2020-07-16T09:29:13",
+      "last": "2020-07-16T09:37:31"
+    },
+    "eda": {
+      "rows": 499,
+      "unit_label": "uS",
+      "first": "2020-07-16T09:29:03",
+      "last": "2020-07-16T09:31:07.500000"
+    },
+    "acc": {
+      "rows": 499,
+      "unit_label": "device_counts",
+      "first": "2020-07-16T09:29:03",
+      "last": "2020-07-16T09:29:18.562500"
+    },
+    "ibi": {
+      "rows": 499,
+      "unit_label": "s",
+      "first": "2020-07-16T09:30:51.629972",
+      "last": "2020-07-16T09:54:25.350935"
+    },
+    "temp": {
+      "rows": 0,
+      "unit_label": "degC",
+      "first": null,
+      "last": null
+    },
+    "glucose": {
+      "rows": 488,
+      "unit_label": "mg/dL",
+      "first": "2020-07-16T10:43:25",
+      "last": "2020-07-18T03:18:22"
+    }
+  },
+  "readiness": {
+    "contract_version": "1",
+    "results": {
+      "hr_eda": {
+        "configured": false,
+        "reason": "Analysis is not configured. Ask the service operator to install a verified workflow.",
+        "model_version": null,
+        "requirements": null
+      },
+      "glucose_variability": {
+        "configured": false,
+        "reason": "Analysis is not configured. Ask the service operator to install a verified workflow.",
+        "model_version": null,
+        "requirements": null
+      },
+      "hrv": {
+        "configured": false,
+        "reason": "Analysis is not configured. Ask the service operator to install a verified workflow.",
+        "model_version": null,
+        "requirements": null
+      },
+      "prediabetes_risk": {
+        "configured": false,
+        "reason": "Analysis is not configured. Ask the service operator to install a verified workflow.",
+        "model_version": null,
+        "requirements": null
+      }
+    }
+  },
+  "actual_source_requests": {
+    "1": {
+      "coverage": {
+        "hr": 300,
+        "eda": 459,
+        "acc": 179,
+        "ibi": 92,
+        "temp": 0,
+        "glucose": 0
+      },
+      "reasons": {
+        "hr_eda": "Analysis is not configured. Ask the service operator to install a verified workflow.",
+        "glucose_variability": "Analysis is not configured. Ask the service operator to install a verified workflow.",
+        "hrv": "Analysis is not configured. Ask the service operator to install a verified workflow.",
+        "prediabetes_risk": "Analysis is not configured. Ask the service operator to install a verified workflow."
+      }
+    },
+    "2": {
+      "coverage": {
+        "hr": 499,
+        "eda": 459,
+        "acc": 179,
+        "ibi": 170,
+        "temp": 0,
+        "glucose": 0
+      },
+      "reasons": {
+        "hr_eda": "Analysis is not configured. Ask the service operator to install a verified workflow.",
+        "glucose_variability": "Analysis is not configured. Ask the service operator to install a verified workflow.",
+        "hrv": "Analysis is not configured. Ask the service operator to install a verified workflow.",
+        "prediabetes_risk": "Analysis is not configured. Ask the service operator to install a verified workflow."
+      }
+    },
+    "12": {
+      "coverage": {
+        "hr": 499,
+        "eda": 459,
+        "acc": 179,
+        "ibi": 499,
+        "temp": 0,
+        "glucose": 0
+      },
+      "reasons": {
+        "hr_eda": "Analysis is not configured. Ask the service operator to install a verified workflow.",
+        "glucose_variability": "Analysis is not configured. Ask the service operator to install a verified workflow.",
+        "hrv": "Analysis is not configured. Ask the service operator to install a verified workflow.",
+        "prediabetes_risk": "Analysis is not configured. Ask the service operator to install a verified workflow."
+      }
+    }
+  },
+  "timezone_synchronization_and_patient_mapping": "Unverified: filenames and CSV unit labels alone are not provenance certification."
+}

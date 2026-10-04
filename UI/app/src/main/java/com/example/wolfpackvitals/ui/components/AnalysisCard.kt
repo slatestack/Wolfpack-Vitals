@@ -12,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -34,6 +35,7 @@ fun AnalysisCard(
         elevation = CardDefaults.cardElevation(2.dp),
         modifier = Modifier
             .fillMaxWidth()
+            .testTag("analysis-card-${biomarker.id}")
             .clickable { onClick() }
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -43,12 +45,13 @@ fun AnalysisCard(
                 verticalAlignment = Alignment.Top
             ) {
                 Row(
+                    modifier = Modifier.weight(1f).padding(end = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    val iconBg = if (biomarker.id == "hr_eda_entropy") Color(0xFFE0F2FE) else Color(0xFFFEF9C3)
-                    val iconTint = if (biomarker.id == "hr_eda_entropy") Color(0xFF0284C7) else Color(0xFFCA8A04)
-                    val iconVector = if (biomarker.id == "hr_eda_entropy") Icons.Default.Water else Icons.AutoMirrored.Filled.TrendingUp
+                    val iconBg = if (biomarker.id == "hr_eda") Color(0xFFE0F2FE) else Color(0xFFFEF9C3)
+                    val iconTint = if (biomarker.id == "hr_eda") Color(0xFF0284C7) else Color(0xFFCA8A04)
+                    val iconVector = if (biomarker.id == "hr_eda") Icons.Default.Water else Icons.AutoMirrored.Filled.TrendingUp
 
                     Surface(
                         color = iconBg,
@@ -72,13 +75,7 @@ fun AnalysisCard(
                             fontSize = 16.sp,
                             color = NCStateDarkGray
                         )
-                        if (biomarker.subtitle.isNotEmpty()) {
-                            Text(
-                                text = biomarker.subtitle,
-                                fontSize = 13.sp,
-                                color = Color(0xFF6B7280)
-                            )
-                        }
+
                     }
                 }
 
@@ -113,15 +110,7 @@ fun AnalysisCard(
             )
             Spacer(modifier = Modifier.height(12.dp))
 
-            LinearProgressIndicator(
-                progress = { biomarker.progress },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(8.dp)
-                    .clip(RoundedCornerShape(4.dp)),
-                color = Color(biomarker.progressColorHex),
-                trackColor = BackgroundGray,
-            )
+            AnalysisBar(biomarker)
 
             Spacer(modifier = Modifier.height(6.dp))
             Row(

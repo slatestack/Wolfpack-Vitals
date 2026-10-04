@@ -1,2 +1,9 @@
 *.hprof
 *.hprof
+
+# Local runtime credentials and generated verification/build files.
+.venv/
+Api/.env
+**/__pycache__/
+.gradle/
+**/build/
