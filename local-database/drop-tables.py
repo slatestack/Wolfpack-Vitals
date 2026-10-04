@@ -8,6 +8,7 @@ cur = conn.cursor()
 cur.execute(
     "DROP TABLE acc"
 )
+
 cur.execute(
     "DROP TABLE dexcom"
 )
