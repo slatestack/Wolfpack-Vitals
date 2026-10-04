@@ -13,7 +13,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PersonAdd
-import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -152,12 +151,6 @@ fun LandingScreen(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 // Feature Highlights
-                FeatureHighlightPill(
-                    icon = Icons.Default.Sensors,
-                    title = "Continuous 64Hz Telemetry",
-                    description = "PPG, EDA, Skin Temperature & Tri-Axial ACC"
-                )
-
                 FeatureHighlightPill(
                     icon = Icons.Default.Timeline,
                     title = "Cross-Fuzzy Entropy (X-FuzzEn)",

@@ -89,8 +89,7 @@ data class ConnectedDevice(
 )
 
 data class AppSettings(
-    val streamingFrequencyHz: Int = 64,
-    val isLiveStreamingEnabled: Boolean = true,
+    val isLiveStreamingEnabled: Boolean = false,
     val isOfflineCachingEnabled: Boolean = true,
     val isTelemetryDeidentified: Boolean = true,
     val notificationsEnabled: Boolean = true,
@@ -114,7 +113,7 @@ data class DashboardUiState(
             type = "Clinical Continuous Wearable",
             isConnected = true,
             batteryPercent = 88,
-            lastSyncTime = "Active (Live 64Hz)",
+            lastSyncTime = "Active (Connected)",
             modalities = "PPG, EDA, Temp, 3-Axis ACC"
         ),
         ConnectedDevice(

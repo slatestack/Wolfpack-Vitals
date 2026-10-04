@@ -89,6 +89,25 @@ class VitalsViewModelReplayTest {
         assertEquals("Unavailable", vm.uiState.value.pipelineStatus.analysis.badgeText)
     }
 
+    @Test fun liveStreamSettingsPauseAndResumeTheSameReplaySession() = runTest(dispatcher) {
+        val vm = viewModel()
+        runCurrent()
+        advanceTimeBy(60000)
+        runCurrent()
+        vm.updateSettings(liveStreaming = false)
+        runCurrent()
+        assertEquals(ReplayPhase.PAUSED, vm.uiState.value.replay.phase)
+        val elapsed = vm.uiState.value.replay.activeElapsedMs
+        advanceTimeBy(60000)
+        runCurrent()
+        assertEquals(elapsed, vm.uiState.value.replay.activeElapsedMs)
+        vm.updateSettings(liveStreaming = true)
+        runCurrent()
+        assertEquals(ReplayPhase.RUNNING, vm.uiState.value.replay.phase)
+        assertEquals(1, loadCount)
+        assertTrue(vm.uiState.value.settings.isLiveStreamingEnabled)
+    }
+
     @Test fun uninterruptedHourSendsTwelveRequestsAndNewHourStartsAtFirstRow() = runTest(dispatcher) {
         val vm = viewModel()
         runCurrent()

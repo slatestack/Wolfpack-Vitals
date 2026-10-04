@@ -166,9 +166,9 @@ class MainActivity : ComponentActivity() {
                         SettingsDialog(
                             settings = uiState.settings,
                             onDismiss = { showSettingsDialog = false },
-                            onSaveSettings = { freq, live, caching, deid ->
+                            onSaveSettings = { live, caching, deid ->
                                 vitalsViewModel.updateSettings(
-                                    streamingFrequencyHz = freq,
+                                    liveStreaming = live,
                                     offlineCaching = caching,
                                     deidentified = deid
                                 )
