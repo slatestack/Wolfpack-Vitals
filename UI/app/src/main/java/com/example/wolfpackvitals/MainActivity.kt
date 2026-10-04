@@ -21,6 +21,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -44,8 +48,25 @@ class MainActivity : ComponentActivity() {
             WolfpackVitalsTheme {
                 val navController = rememberNavController()
                 val context = LocalContext.current
-                val vitalsViewModel: VitalsViewModel = viewModel()
-                val uiState by vitalsViewModel.uiState.collectAsState()
+                val vitalsViewModel: VitalsViewModel = viewModel(
+                    factory = VitalsViewModel.factory(context.applicationContext.assets)
+                )
+                val uiState by vitalsViewModel.uiState.collectAsStateWithLifecycle()
+                val lifecycleOwner = LocalLifecycleOwner.current
+                DisposableEffect(lifecycleOwner, vitalsViewModel) {
+                    val observer = LifecycleEventObserver { _, event ->
+                        if (event == Lifecycle.Event.ON_RESUME) vitalsViewModel.setApplicationActive(true)
+                        if (event == Lifecycle.Event.ON_PAUSE) vitalsViewModel.setApplicationActive(false)
+                    }
+                    lifecycleOwner.lifecycle.addObserver(observer)
+                    vitalsViewModel.setApplicationActive(
+                        lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+                    )
+                    onDispose {
+                        vitalsViewModel.setApplicationActive(false)
+                        lifecycleOwner.lifecycle.removeObserver(observer)
+                    }
+                }
                 var showSettingsDialog by remember { mutableStateOf(false) }
 
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -276,7 +297,7 @@ fun DashboardScreenPreview() {
             Box(modifier = Modifier.padding(innerPadding)) {
                 DashboardScreen(
                     uiState = DashboardUiState(),
-                    viewModel = viewModel()
+                    viewModel = viewModel(factory = VitalsViewModel.factory(LocalContext.current.applicationContext.assets))
                 )
             }
         }

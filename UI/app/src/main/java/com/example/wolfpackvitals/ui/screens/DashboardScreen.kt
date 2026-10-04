@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.wolfpackvitals.data.BiomarkerAnalysis
 import com.example.wolfpackvitals.data.DashboardUiState
+import com.example.wolfpackvitals.data.replay.ReplayPhase
 import com.example.wolfpackvitals.ui.VitalsViewModel
 import com.example.wolfpackvitals.ui.components.*
 import com.example.wolfpackvitals.ui.theme.BackgroundGray
@@ -35,6 +36,11 @@ fun DashboardScreen(
     viewModel: VitalsViewModel
 ) {
     val context = LocalContext.current
+    LaunchedEffect(uiState.replay.phase) {
+        if (uiState.replay.phase == ReplayPhase.COMPLETED) {
+            Toast.makeText(context, "Patient 16 hourly averaging complete", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     // State for interactive dialogs
     var showLogVitalDialog by remember { mutableStateOf(false) }
@@ -52,27 +58,34 @@ fun DashboardScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Live Ingestion Status Banner
-            Row(
+            // Stored Patient 16 replay controls and observable session status.
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Start,
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 PulsatingStreamingBadge(
                     isStreaming = uiState.isStreamingActive,
+                    text = uiState.replay.badgeLabel,
                     onClick = {
-                        viewModel.toggleStreaming()
-                        val msg = if (!uiState.isStreamingActive) "Streaming resumed (64Hz)" else "Streaming paused"
+                        val msg = viewModel.togglePatient16Replay()
                         Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                     }
                 )
+                Patient16ReplayStatus(uiState.replay)
             }
 
             // 1. Average Heart Rate Card
             CurrentHeartRateCard(
-                avgBpm = uiState.heartRate.avgBpm,
+                avgBpm = uiState.replay.averages?.heartbeat?.let { kotlin.math.round(it).toInt() }
+                    ?: uiState.heartRate.avgBpm,
                 restingBpm = uiState.heartRate.restingBpm,
                 isStreaming = uiState.isStreamingActive,
+                statusText = when (uiState.replay.phase) {
+                    ReplayPhase.INACTIVE -> "Replay idle"
+                    ReplayPhase.RUNNING -> "Patient 16"
+                    ReplayPhase.PAUSED -> "Paused"
+                    ReplayPhase.COMPLETED -> "Hour complete"
+                },
                 onLogClick = {
                     hourToLog = null
                     showLogVitalDialog = true

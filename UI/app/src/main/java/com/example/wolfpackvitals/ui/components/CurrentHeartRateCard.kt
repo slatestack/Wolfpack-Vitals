@@ -29,6 +29,7 @@ fun CurrentHeartRateCard(
     avgBpm: Int,
     restingBpm: Int,
     isStreaming: Boolean = true,
+    statusText: String = if (isStreaming) "Patient 16" else "Replay idle",
     onLogClick: () -> Unit = {}
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "heartBeat")
@@ -95,7 +96,7 @@ fun CurrentHeartRateCard(
                                 .background(if (isStreaming) NCStateRed else Color.Gray, CircleShape)
                         )
                         Text(
-                            text = if (isStreaming) "Live Stream" else "Paused",
+                            text = statusText,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (isStreaming) NCStateRed else Color.Gray

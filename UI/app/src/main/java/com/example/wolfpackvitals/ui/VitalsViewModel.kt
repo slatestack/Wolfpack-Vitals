@@ -1,17 +1,54 @@
 package com.example.wolfpackvitals.ui
 
+import android.content.res.AssetManager
+import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import com.example.wolfpackvitals.BuildConfig
 import com.example.wolfpackvitals.data.*
+import com.example.wolfpackvitals.data.network.*
+import com.example.wolfpackvitals.data.replay.*
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-class VitalsViewModel : ViewModel() {
+class VitalsViewModel(
+    private val patient16DataSource: Patient16DataSource,
+    private val predictionClient: PredictionClient,
+    monotonicNowMs: () -> Long = { SystemClock.uptimeMillis() },
+    private val wallNowMs: () -> Long = { System.currentTimeMillis() },
+    private val dataDispatcher: CoroutineDispatcher = Dispatchers.IO
+) : ViewModel() {
+    companion object {
+        fun factory(assets: AssetManager) = viewModelFactory {
+            initializer {
+                VitalsViewModel(
+                    CsvPatient16DataSource { name -> assets.open("patient-16-data/$name").reader() },
+                    OkHttpPredictionClient(BuildConfig.FASTAPI_BASE_URL)
+                )
+            }
+        }
+    }
+
+    private var replayJob: Job? = null
+    private var replaySession: Patient16ReplaySession? = null
+    private val replayClock = ActiveReplayClock(monotonicNowMs)
+    private val pendingSnapshots = ArrayDeque<ReplaySnapshot>()
+    private val inFlightRequests = mutableMapOf<Int, PredictionRequest>()
+    private var sessionId = 0
 
     private val full24HHistory = mutableListOf(
         "00:00" to 62, "01:00" to 60, "02:00" to 58, "03:00" to 59,
@@ -67,9 +104,7 @@ class VitalsViewModel : ViewModel() {
         viewModelScope.launch {
             delay(1400)
             _uiState.update { current ->
-                val newAvg = (68..74).random()
                 current.copy(
-                    heartRate = current.heartRate.copy(avgBpm = newAvg),
                     pipelineStatus = current.pipelineStatus.copy(
                         isSyncing = false,
                         lastSyncedText = "Just now",
@@ -115,17 +150,128 @@ class VitalsViewModel : ViewModel() {
         }
     }
 
-    // 4. Toggle Live Sensor Stream
-    fun toggleStreaming() {
-        _uiState.update { current ->
-            val newState = !current.isStreamingActive
-            current.copy(
-                isStreamingActive = newState,
-                pipelineStatus = current.pipelineStatus.copy(
-                    clusterStatus = if (newState) "Running (Online)" else "Paused (Standby)"
-                )
-            )
+    // One ViewModel-owned replay job; taps only pause/resume the same clock and session.
+    fun togglePatient16Replay(): String {
+        return when (_uiState.value.replay.phase) {
+            ReplayPhase.INACTIVE, ReplayPhase.COMPLETED -> {
+                startPatient16Replay()
+                "Patient 16 hourly averaging started"
+            }
+            ReplayPhase.RUNNING -> {
+                checkpointReplay()
+                replayClock.setActive(false)
+                _uiState.update { it.copy(replay = it.replay.copy(phase = ReplayPhase.PAUSED)) }
+                cancelInFlightRequests()
+                "Patient 16 replay paused"
+            }
+            ReplayPhase.PAUSED -> {
+                _uiState.update { it.copy(replay = it.replay.copy(phase = ReplayPhase.RUNNING)) }
+                replayClock.setActive(_uiState.value.replay.isAdvancing)
+                "Patient 16 replay resumed"
+            }
         }
+    }
+
+    /** The activity forwards lifecycle events; background wall-clock time never counts. */
+    fun setApplicationActive(active: Boolean) {
+        if (_uiState.value.replay.isApplicationActive == active) return
+        checkpointReplay()
+        _uiState.update { it.copy(replay = it.replay.copy(isApplicationActive = active)) }
+        replayClock.setActive(_uiState.value.replay.isAdvancing)
+        if (!active) cancelInFlightRequests()
+    }
+
+    private fun startPatient16Replay() {
+        if (replayJob?.isActive == true) return
+        cancelInFlightRequests()
+        sessionId++
+        replaySession = null
+        pendingSnapshots.clear()
+        replayClock.setActive(false)
+        _uiState.update { current -> current.copy(replay = Patient16ReplayState(
+            phase = ReplayPhase.RUNNING,
+            isLoading = true,
+            isApplicationActive = current.replay.isApplicationActive
+        )) }
+        replayJob = viewModelScope.launch {
+            try {
+                val data = withContext(dataDispatcher) { patient16DataSource.load() }
+                replaySession = Patient16ReplaySession(data)
+                _uiState.update { it.copy(replay = it.replay.copy(isLoading = false)) }
+                replayClock.setActive(_uiState.value.replay.isAdvancing)
+                while (isActive) {
+                    // Suspending on StateFlow avoids polling or counting time while paused.
+                    uiState.first { it.replay.isAdvancing }
+                    checkpointReplay()
+                    while (pendingSnapshots.isNotEmpty() && _uiState.value.replay.isAdvancing) {
+                        sendSnapshot(pendingSnapshots.removeFirst())
+                    }
+                    if (requireNotNull(replaySession).activeElapsedMs == REPLAY_HOUR_MS &&
+                        pendingSnapshots.isEmpty()) {
+                        replayClock.setActive(false)
+                        _uiState.update { it.copy(replay = it.replay.copy(phase = ReplayPhase.COMPLETED)) }
+                        break
+                    }
+                    delay(REPLAY_SAMPLE_INTERVAL_MS)
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                replayClock.setActive(false)
+                _uiState.update { it.copy(replay = it.replay.copy(
+                    phase = ReplayPhase.INACTIVE, isLoading = false,
+                    dataError = error.message ?: "Unable to load Patient 16 data"
+                )) }
+            }
+        }
+    }
+
+    private fun checkpointReplay() {
+        val elapsed = replayClock.takeElapsed()
+        val session = replaySession ?: return
+        pendingSnapshots.addAll(session.advanceBy(elapsed))
+        _uiState.update { it.copy(replay = it.replay.copy(
+            activeElapsedMs = session.activeElapsedMs, averages = session.averages
+        )) }
+    }
+
+    private fun sendSnapshot(snapshot: ReplaySnapshot) {
+        val sendingSessionId = sessionId
+        val attempt = _uiState.value.replay.transmissionAttempts + 1
+        _uiState.update { it.copy(replay = it.replay.copy(transmissionAttempts = attempt)) }
+        val onResult: (Result<String>) -> Unit = { result ->
+            // HTTP callbacks only publish status. They never mutate replay sums or positions.
+            viewModelScope.launch(Dispatchers.Main) {
+                if (sendingSessionId == sessionId) {
+                    inFlightRequests.remove(attempt)
+                    _uiState.update { current -> current.copy(replay = current.replay.copy(
+                        transmissionsCompleted = current.replay.transmissionsCompleted + 1,
+                        successfulTransmissions = current.replay.successfulTransmissions + if (result.isSuccess) 1 else 0,
+                        lastSuccessfulSendEpochMs = if (result.isSuccess) wallNowMs()
+                            else current.replay.lastSuccessfulSendEpochMs,
+                        lastApiError = result.exceptionOrNull()?.let {
+                            "Send ${snapshot.activeElapsedMs / 60000}m: ${it.message ?: "Prediction request failed"}"
+                        }
+                    )) }
+                }
+            }
+        }
+        try {
+            inFlightRequests[attempt] = predictionClient.send(PredictionPayload.from(snapshot.averages), onResult)
+        } catch (error: Exception) {
+            onResult(Result.failure(error))
+        }
+    }
+
+    private fun cancelInFlightRequests() {
+        inFlightRequests.values.forEach { it.cancel() }
+        inFlightRequests.clear()
+    }
+
+    override fun onCleared() {
+        replayClock.setActive(false)
+        cancelInFlightRequests()
+        super.onCleared()
     }
 
     // 5. Connect / Disconnect Hardware Devices

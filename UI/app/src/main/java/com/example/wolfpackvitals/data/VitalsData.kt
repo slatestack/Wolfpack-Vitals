@@ -2,6 +2,7 @@ package com.example.wolfpackvitals.data
 
 import androidx.compose.ui.graphics.Color
 import com.example.wolfpackvitals.ui.theme.*
+import com.example.wolfpackvitals.data.replay.Patient16ReplayState
 
 data class HeartRateReading(
     val avgBpm: Int = 70,
@@ -202,5 +203,7 @@ data class DashboardUiState(
     ),
     val settings: AppSettings = AppSettings(),
     val selectedBiomarkerFilter: String = "All",
-    val isStreamingActive: Boolean = true,
-)
+    val replay: Patient16ReplayState = Patient16ReplayState(),
+) {
+    val isStreamingActive: Boolean get() = replay.isAdvancing
+}
